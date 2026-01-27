@@ -34,7 +34,7 @@ def get_sheet():
     except:
         return None
 
-# 날씨 함수 (Open-Meteo 정식 API)
+# 날씨 함수 (Open-Meteo)
 def get_weather():
     try:
         url = "https://api.open-meteo.com/v1/forecast?latitude=36.35&longitude=127.38&current_weather=true&timezone=Asia%2FSeoul"
@@ -102,113 +102,8 @@ st.divider()
 tab1, tab2, tab3 = st.tabs(["✅ 할 일 (Smart)", "📝 빠른 메모", "🛠️ 데이터 수정/관리"])
 
 # ==================================================================
-# [탭 1] 스마트 할 일 (수정된 로직)
+# [탭 1] 스마트 할 일 (날짜 선택 추가됨)
 # ==================================================================
 with tab1:
-    # 1. 입력 폼
-    with st.expander("➕ 새 일정 추가하기", expanded=False):
-        with st.form("todo_form", clear_on_submit=True):
-            c1, c2 = st.columns([2, 1])
-            task = c1.text_input("내용", placeholder="예: 매주 수요일 컨퍼런스")
-            repeat = c2.selectbox("반복", ["없음", "매일", "매주", "매월"])
-            
-            if st.form_submit_button("추가"):
-                sheet = get_sheet()
-                if sheet:
-                    sheet.append_row([str(today_obj), "일정", task, "FALSE", repeat])
-                    st.toast("일정이 추가되었습니다!")
-                    st.rerun()
-
-    # 2. 리스트 & 체크 로직 (여기가 핵심!)
-    sheet = get_sheet()
-    if sheet:
-        data = sheet.get_all_records()
-        df = pd.DataFrame(data)
-        
-        if not df.empty:
-            # 날짜 변환
-            df['날짜_dt'] = pd.to_datetime(df['날짜'], errors='coerce').dt.date
-            
-            # 조건 필터링
-            cond_today = (df['날짜_dt'] == today_obj)
-            cond_daily = (df['반복'] == '매일')
-            cond_weekly = (df['반복'] == '매주') & (pd.to_datetime(df['날짜'], errors='coerce').dt.weekday == today_obj.weekday())
-            cond_monthly = (df['반복'] == '매월') & (pd.to_datetime(df['날짜'], errors='coerce').dt.day == today_obj.day)
-            
-            # 할 일 목록만 추출 (인덱스 보존 중요!)
-            today_tasks = df[ 
-                (df['유형'] == '일정') & 
-                (df['완료'] != 'TRUE') & 
-                (cond_today | cond_daily | cond_weekly | cond_monthly) 
-            ]
-            
-            if not today_tasks.empty:
-                st.write(f"오늘 할 일: **{len(today_tasks)}개**")
-                
-                # 반복문으로 체크박스 생성
-                for idx, row in today_tasks.iterrows():
-                    # 체크박스 키를 유니크하게 생성
-                    is_checked = st.checkbox(f"{row['내용']} ({row['반복']})", key=f"chk_{idx}")
-                    
-                    if is_checked:
-                        # [핵심] 체크 되면 구글 시트의 해당 셀을 'TRUE'로 바꿈
-                        # idx는 0부터 시작하는 데이터프레임 인덱스
-                        # 구글 시트는 1행이 헤더이므로 실제 행 번호는 idx + 2
-                        try:
-                            # 4번째 열(D열)이 '완료' 컬럼임
-                            sheet.update_cell(idx + 2, 4, "TRUE") 
-                            st.toast("완료 처리되었습니다! 🎉")
-                            st.rerun() # 새로고침해서 목록에서 사라지게 함
-                        except Exception as e:
-                            st.error(f"오류 발생: {e}")
-
-            else:
-                st.caption("오늘 예정된 할 일이 없습니다. ☕")
-
-# ==================================================================
-# [탭 2] 빠른 메모
-# ==================================================================
-with tab2:
-    with st.form("memo_form", clear_on_submit=True):
-        note = st.text_area("메모 입력", height=80, placeholder="아이디어를 적어두세요.")
-        if st.form_submit_button("저장"):
-            if note:
-                sheet = get_sheet()
-                sheet.append_row([str(today_obj), "메모", note, "", "없음"])
-                st.toast("저장됨")
-                st.rerun()
-    
-    if not df.empty:
-        memos = df[df['유형'] == '메모'].sort_values(by='날짜', ascending=False).head(3)
-        for _, row in memos.iterrows():
-            st.text(f"[{row['날짜']}] {row['내용']}")
-
-# ==================================================================
-# [탭 3] 🛠️ 데이터 수정/관리
-# ==================================================================
-with tab3:
-    st.markdown("### 📋 전체 데이터 편집기")
-    st.caption("수정 후 아래 '저장' 버튼을 꼭 눌러주세요.")
-    
-    if sheet:
-        raw_data = sheet.get_all_records()
-        edit_df = pd.DataFrame(raw_data)
-        
-        edited_df = st.data_editor(
-            edit_df,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            key="editor"
-        )
-        
-        if st.button("💾 변경사항 클라우드에 저장 (주의!)", type="primary"):
-            with st.spinner("동기화 중..."):
-                try:
-                    sheet.clear()
-                    sheet.append_row(edited_df.columns.tolist())
-                    sheet.append_rows(edited_df.values.tolist())
-                    st.success("완벽하게 저장되었습니다! ✅")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"저장 중 오류: {e}")
+    # 1. 입력 폼 (날짜, 내용, 반복)
+    with st.expander("
