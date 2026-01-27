@@ -37,25 +37,47 @@ def get_sheet(worksheet_name):
     except:
         return None
 
-# 웹사이트 텍스트 긁어오기
+# [핵심] 네이버 블로그까지 뚫어버리는 텍스트 수집기
 def fetch_url_content(url):
     try:
+        # 1. 네이버 블로그라면? -> '진짜 주소(PostView)'로 변환
+        if "blog.naver.com" in url:
+            # 주소에서 아이디와 글번호 추출 (예: blog.naver.com/id/1234 -> id, 1234)
+            match = re.search(r'blog.naver.com/([^/]+)/([0-9]+)', url)
+            if match:
+                blog_id, log_no = match.groups()
+                # iframe을 벗겨낸 진짜 주소
+                url = f"https://blog.naver.com/PostView.naver?blogId={blog_id}&logNo={log_no}"
+
+        # 2. 구글 지도 링크 거절 (보안 문제)
+        if "google.com" in url and "maps" in url:
+             return "구글 지도 링크는 읽을 수 없습니다. 블로그나 식당 소개 페이지 링크를 주세요."
+
+        # 3. 접속 시도
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         session = requests.Session()
-        response = session.get(url, headers=headers, timeout=10, allow_redirects=True)
+        response = session.get(url, headers=headers, timeout=10)
         
-        if "google.com" in response.url:
-             return "구글 지도 링크는 읽을 수 없습니다. 블로그나 식당 소개 페이지 링크를 주세요."
-
+        # 4. 텍스트 추출
         soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 스크립트 등 불필요한 태그 제거
         for script in soup(["script", "style", "header", "footer", "nav", "iframe"]):
             script.extract()
+            
+        # 본문 텍스트만 깔끔하게
         text = soup.get_text(separator=' ', strip=True)
-        return text[:15000]
+        
+        # 내용이 너무 없으면 실패로 간주
+        if len(text) < 50:
+            return "오류: 내용을 읽을 수 없습니다. (텍스트가 너무 짧음)"
+            
+        return text[:15000] # AI에게 너무 긴 글은 잘라서 줌
+
     except Exception as e:
-        return f"오류: {e}"
+        return f"읽기 실패: {e}"
 
 # ------------------------------------------------------------------
 # [2] 화면 구성
@@ -64,7 +86,7 @@ st.title("👨‍👩‍👧‍👦 우리 가족 여행 & 경비 본부")
 
 tab1, tab2, tab3 = st.tabs(["✈️ AI 여행 플래너", "🍽️ 주변 맛집 추천/비교", "💰 공금 사용 내역"])
 
-# [탭 1] 여행 플래너 (간략 유지)
+# [탭 1] 여행 플래너
 with tab1:
     st.markdown("### 🤖 여행 코스 짜기")
     user_input = st.text_area("예: 오사카 2박 3일, 유니버셜 포함 코스 짜줘", height=80)
@@ -75,7 +97,7 @@ with tab1:
             except: st.error("AI 오류")
 
 # ==================================================================
-# [탭 2] 🍽️ 주변 맛집 추천 & 함정 피하기 (핵심 기능)
+# [탭 2] 🍽️ 주변 맛집 추천 & 함정 피하기 (업그레이드 완료)
 # ==================================================================
 with tab2:
     st.markdown("### 🔍 이 식당 어때? (주변 대안 추천)")
@@ -86,7 +108,7 @@ with tab2:
     if st.button("주변 맛집지도 분석 시작 🧭"):
         if url_input:
             with st.spinner("위치 파악 및 현지 데이터 대조 중..."):
-                # 1. 텍스트 추출
+                # 1. 텍스트 추출 (네이버 블로그 뚫기 적용됨)
                 page_text = fetch_url_content(url_input)
                 
                 # 2. AI에게 '현지 가이드' 역할 부여
@@ -147,7 +169,7 @@ with tab2:
         else:
             st.warning("링크를 넣어주세요!")
 
-# [탭 3] 가계부 (동일)
+# [탭 3] 가계부
 with tab3:
     st.markdown("### 💸 지출 기록")
     with st.expander("입력창 열기", expanded=True):
@@ -164,8 +186,9 @@ with tab3:
     # 내역 표시
     sheet = get_sheet("가족여행")
     if sheet:
-        df = pd.DataFrame(sheet.get_all_records())
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
         if not df.empty and '금액' in df.columns:
-             # 금액 처리 안전장치
+            # 금액 콤마 제거 안전장치
             df['금액'] = pd.to_numeric(df['금액'].astype(str).str.replace(',',''), errors='coerce').fillna(0)
             st.dataframe(df)
