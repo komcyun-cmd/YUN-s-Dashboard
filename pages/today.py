@@ -34,10 +34,9 @@ def get_sheet():
     except:
         return None
 
-# [수정됨] 날씨 함수 (Open-Meteo 정식 API 사용 -> 훨씬 안정적)
+# 날씨 함수 (Open-Meteo 정식 API)
 def get_weather():
     try:
-        # 대전 시청 근처 좌표 (위도 36.35, 경도 127.38)
         url = "https://api.open-meteo.com/v1/forecast?latitude=36.35&longitude=127.38&current_weather=true&timezone=Asia%2FSeoul"
         response = requests.get(url, timeout=5)
         data = response.json()
@@ -45,7 +44,6 @@ def get_weather():
         temp = data['current_weather']['temperature']
         code = data['current_weather']['weathercode']
         
-        # WMO 날씨 코드 변환 (숫자 -> 한글)
         w_text = "맑음 ☀️"
         if code in [1, 2, 3]: w_text = "구름 조금 ⛅"
         elif code in [45, 48]: w_text = "안개 🌫️"
@@ -57,7 +55,7 @@ def get_weather():
     except Exception as e:
         return f"날씨 오류 ({e})"
 
-# 오늘의 역사/명언 캐싱 (12시간 유지)
+# 오늘의 역사/명언 캐싱
 @st.cache_data(ttl=3600*12) 
 def get_daily_content(today_str):
     prompt = f"""
@@ -79,10 +77,9 @@ def get_daily_content(today_str):
 # ------------------------------------------------------------------
 st.title(f"📅 {datetime.date.today().strftime('%m월 %d일')} 아침")
 
-# 섹션 1: 날씨 & 영감
 col1, col2 = st.columns([1, 2])
 with col1:
-    st.metric("대전 날씨", get_weather()) # 함수 호출 시 인자 필요 없음 (좌표 고정됨)
+    st.metric("대전 날씨", get_weather())
 with col2:
     today_obj = datetime.date.today()
     info = get_daily_content(today_obj.strftime("%Y년 %m월 %d일"))
@@ -91,7 +88,6 @@ with col2:
 
 st.divider()
 
-# 섹션 2: 오늘의 명언
 if info:
     st.markdown(f"""
     <div style="padding:15px; border-left:4px solid #aaa; background-color:#f9f9f9;">
@@ -102,14 +98,14 @@ if info:
 
 st.divider()
 
-# --- 탭 구성: 보기 / 관리(수정) ---
+# --- 탭 구성 ---
 tab1, tab2, tab3 = st.tabs(["✅ 할 일 (Smart)", "📝 빠른 메모", "🛠️ 데이터 수정/관리"])
 
 # ==================================================================
-# [탭 1] 스마트 할 일 (반복 일정 포함)
+# [탭 1] 스마트 할 일 (수정된 로직)
 # ==================================================================
 with tab1:
-    # 1. 입력 폼 (반복 선택 추가)
+    # 1. 입력 폼
     with st.expander("➕ 새 일정 추가하기", expanded=False):
         with st.form("todo_form", clear_on_submit=True):
             c1, c2 = st.columns([2, 1])
@@ -119,19 +115,18 @@ with tab1:
             if st.form_submit_button("추가"):
                 sheet = get_sheet()
                 if sheet:
-                    # 날짜, 유형, 내용, 완료, 반복
                     sheet.append_row([str(today_obj), "일정", task, "FALSE", repeat])
                     st.toast("일정이 추가되었습니다!")
                     st.rerun()
 
-    # 2. 스마트 리스트 보여주기
+    # 2. 리스트 & 체크 로직 (여기가 핵심!)
     sheet = get_sheet()
     if sheet:
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
         if not df.empty:
-            # 날짜 형식 변환
+            # 날짜 변환
             df['날짜_dt'] = pd.to_datetime(df['날짜'], errors='coerce').dt.date
             
             # 조건 필터링
@@ -140,6 +135,7 @@ with tab1:
             cond_weekly = (df['반복'] == '매주') & (pd.to_datetime(df['날짜'], errors='coerce').dt.weekday == today_obj.weekday())
             cond_monthly = (df['반복'] == '매월') & (pd.to_datetime(df['날짜'], errors='coerce').dt.day == today_obj.day)
             
+            # 할 일 목록만 추출 (인덱스 보존 중요!)
             today_tasks = df[ 
                 (df['유형'] == '일정') & 
                 (df['완료'] != 'TRUE') & 
@@ -148,15 +144,29 @@ with tab1:
             
             if not today_tasks.empty:
                 st.write(f"오늘 할 일: **{len(today_tasks)}개**")
+                
+                # 반복문으로 체크박스 생성
                 for idx, row in today_tasks.iterrows():
-                    chk = st.checkbox(f"{row['내용']} ({row['반복']})", key=f"task_{idx}")
-                    if chk:
-                        st.caption("✅ 완료! (삭제하려면 '데이터 수정' 탭 이용)")
+                    # 체크박스 키를 유니크하게 생성
+                    is_checked = st.checkbox(f"{row['내용']} ({row['반복']})", key=f"chk_{idx}")
+                    
+                    if is_checked:
+                        # [핵심] 체크 되면 구글 시트의 해당 셀을 'TRUE'로 바꿈
+                        # idx는 0부터 시작하는 데이터프레임 인덱스
+                        # 구글 시트는 1행이 헤더이므로 실제 행 번호는 idx + 2
+                        try:
+                            # 4번째 열(D열)이 '완료' 컬럼임
+                            sheet.update_cell(idx + 2, 4, "TRUE") 
+                            st.toast("완료 처리되었습니다! 🎉")
+                            st.rerun() # 새로고침해서 목록에서 사라지게 함
+                        except Exception as e:
+                            st.error(f"오류 발생: {e}")
+
             else:
                 st.caption("오늘 예정된 할 일이 없습니다. ☕")
 
 # ==================================================================
-# [탭 2] 빠른 메모 (단순 입력)
+# [탭 2] 빠른 메모
 # ==================================================================
 with tab2:
     with st.form("memo_form", clear_on_submit=True):
