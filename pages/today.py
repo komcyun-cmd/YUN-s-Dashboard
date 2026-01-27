@@ -34,15 +34,28 @@ def get_sheet():
     except:
         return None
 
-# [수정됨] 날씨 함수 (무조건 섭씨 &m 추가)
-def get_weather(city="Daejeon"):
+# [수정됨] 날씨 함수 (Open-Meteo 정식 API 사용 -> 훨씬 안정적)
+def get_weather():
     try:
-        # &m 옵션을 추가하여 미국 서버에서도 강제로 섭씨(°C)로 출력
-        url = f"https://wttr.in/{city}?format=%C+%t&lang=ko&m" 
-        response = requests.get(url, timeout=3)
-        return response.text.strip()
-    except:
-        return "정보 없음"
+        # 대전 시청 근처 좌표 (위도 36.35, 경도 127.38)
+        url = "https://api.open-meteo.com/v1/forecast?latitude=36.35&longitude=127.38&current_weather=true&timezone=Asia%2FSeoul"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        
+        temp = data['current_weather']['temperature']
+        code = data['current_weather']['weathercode']
+        
+        # WMO 날씨 코드 변환 (숫자 -> 한글)
+        w_text = "맑음 ☀️"
+        if code in [1, 2, 3]: w_text = "구름 조금 ⛅"
+        elif code in [45, 48]: w_text = "안개 🌫️"
+        elif code in [51, 53, 55, 61, 63, 65, 80, 81, 82]: w_text = "비 🌧️"
+        elif code in [71, 73, 75, 77, 85, 86]: w_text = "눈 ❄️"
+        elif code >= 95: w_text = "뇌우 ⚡"
+        
+        return f"{w_text} {temp}°C"
+    except Exception as e:
+        return f"날씨 오류 ({e})"
 
 # 오늘의 역사/명언 캐싱 (12시간 유지)
 @st.cache_data(ttl=3600*12) 
@@ -69,7 +82,7 @@ st.title(f"📅 {datetime.date.today().strftime('%m월 %d일')} 아침")
 # 섹션 1: 날씨 & 영감
 col1, col2 = st.columns([1, 2])
 with col1:
-    st.metric("대전 날씨", get_weather("Daejeon"))
+    st.metric("대전 날씨", get_weather()) # 함수 호출 시 인자 필요 없음 (좌표 고정됨)
 with col2:
     today_obj = datetime.date.today()
     info = get_daily_content(today_obj.strftime("%Y년 %m월 %d일"))
@@ -121,16 +134,12 @@ with tab1:
             # 날짜 형식 변환
             df['날짜_dt'] = pd.to_datetime(df['날짜'], errors='coerce').dt.date
             
-            # 조건 1: 날짜가 오늘인 것
+            # 조건 필터링
             cond_today = (df['날짜_dt'] == today_obj)
-            # 조건 2: 반복이 '매일'인 것
             cond_daily = (df['반복'] == '매일')
-            # 조건 3: 반복이 '매주'이고 요일이 같은 것 (0:월 ~ 6:일)
             cond_weekly = (df['반복'] == '매주') & (pd.to_datetime(df['날짜'], errors='coerce').dt.weekday == today_obj.weekday())
-            # 조건 4: 반복이 '매월'이고 일이 같은 것
             cond_monthly = (df['반복'] == '매월') & (pd.to_datetime(df['날짜'], errors='coerce').dt.day == today_obj.day)
             
-            # 전체 조건 (유형이 '일정'이면서 위 조건 중 하나라도 맞고, 완료 안 된 것)
             today_tasks = df[ 
                 (df['유형'] == '일정') & 
                 (df['완료'] != 'TRUE') & 
@@ -142,7 +151,7 @@ with tab1:
                 for idx, row in today_tasks.iterrows():
                     chk = st.checkbox(f"{row['내용']} ({row['반복']})", key=f"task_{idx}")
                     if chk:
-                        st.caption("✅ 완료! (삭제하려면 '데이터 수정' 탭을 이용하세요)")
+                        st.caption("✅ 완료! (삭제하려면 '데이터 수정' 탭 이용)")
             else:
                 st.caption("오늘 예정된 할 일이 없습니다. ☕")
 
@@ -159,42 +168,35 @@ with tab2:
                 st.toast("저장됨")
                 st.rerun()
     
-    # 최근 메모 3개만 보여주기 (읽기 전용)
     if not df.empty:
         memos = df[df['유형'] == '메모'].sort_values(by='날짜', ascending=False).head(3)
         for _, row in memos.iterrows():
             st.text(f"[{row['날짜']}] {row['내용']}")
 
 # ==================================================================
-# [탭 3] 🛠️ 데이터 수정/관리 (엑셀처럼 편집)
+# [탭 3] 🛠️ 데이터 수정/관리
 # ==================================================================
 with tab3:
     st.markdown("### 📋 전체 데이터 편집기")
-    st.caption("여기서 내용을 수정하거나, 체크박스로 삭제할 행을 선택하고 '저장'을 누르세요.")
+    st.caption("수정 후 아래 '저장' 버튼을 꼭 눌러주세요.")
     
     if sheet:
-        # 최신 데이터를 다시 가져옴
         raw_data = sheet.get_all_records()
         edit_df = pd.DataFrame(raw_data)
         
-        # 데이터 에디터 표시 (행 삭제/추가 가능)
         edited_df = st.data_editor(
             edit_df,
-            num_rows="dynamic", # 행 추가/삭제 허용
+            num_rows="dynamic",
             use_container_width=True,
             hide_index=True,
             key="editor"
         )
         
-        # 저장 버튼
         if st.button("💾 변경사항 클라우드에 저장 (주의!)", type="primary"):
             with st.spinner("동기화 중..."):
                 try:
-                    # 시트 클리어 후 전체 다시 쓰기 (가장 확실한 방법)
                     sheet.clear()
-                    # 헤더 다시 쓰기
                     sheet.append_row(edited_df.columns.tolist())
-                    # 내용 쓰기
                     sheet.append_rows(edited_df.values.tolist())
                     st.success("완벽하게 저장되었습니다! ✅")
                     st.rerun()
