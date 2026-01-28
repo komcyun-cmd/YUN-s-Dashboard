@@ -13,7 +13,7 @@ st.set_page_config(
 # ------------------------------------------------------------------
 # [2] 헤더 및 인사말
 # ------------------------------------------------------------------
-st.title("🏥 YUNs Intelligent HQ")
+st.title("🏥 YUN's Intelligent HQ")
 st.markdown(f"**{datetime.date.today().strftime('%Y년 %m월 %d일')}**, 오늘도 최고의 하루를 설계하세요.")
 st.divider()
 
@@ -70,4 +70,5 @@ with col_right:
 # ------------------------------------------------------------------
 st.divider()
 st.caption("🚀 Powered by **Gemini AI** & **Streamlit** | System Status: **Online** ✅")
+
 
