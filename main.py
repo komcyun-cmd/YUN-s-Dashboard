@@ -1,132 +1,72 @@
 import streamlit as st
-import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import os
 import datetime
-import altair as alt # 예쁜 그래프 그리는 도구
 
 # ------------------------------------------------------------------
-# [1] 기본 설정
+# [1] 페이지 설정
 # ------------------------------------------------------------------
 st.set_page_config(
-    page_title="Dr.Kim's Dashboard",
-    page_icon="👨‍⚕️",
-    layout="wide"
+    page_title="YUN's Intelligent HQ", 
+    page_icon="🏥", 
+    layout="wide" # 넓은 화면 사용
 )
 
 # ------------------------------------------------------------------
-# [2] 데이터 연결 (구글 시트)
+# [2] 헤더 및 인사말
 # ------------------------------------------------------------------
-# 키 파일 찾기 (Main.py랑 같은 위치 혹은 pages 폴더 확인)
-if "gcp_service_account" in st.secrets:
-    # 클라우드 배포 환경
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
-else:
-    # 내 컴퓨터(로컬) 환경
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    if os.path.exists("secrets.json"):
-        SECRET_FILE = "secrets.json"
-    elif os.path.exists(os.path.join("pages", "secrets.json")):
-        SECRET_FILE = os.path.join("pages", "secrets.json")
-    else:
-        SECRET_FILE = "secrets.json"
-        
-    try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name(SECRET_FILE, scope)
-    except:
-        creds = None
-
-def load_data():
-    """구글 시트에서 관리비 데이터를 싹 긁어옵니다."""
-    try:
-        if creds is None:
-            return pd.DataFrame()
-
-        client = gspread.authorize(creds)
-        sheet = client.open("My_Dashboard_DB").worksheet("관리비")
-        data = sheet.get_all_records()
-        df = pd.DataFrame(data)
-        
-        if df.empty:
-            return pd.DataFrame()
-            
-        # 금액 숫자로 변환 (콤마 제거)
-        if '금액' in df.columns:
-            df['금액'] = pd.to_numeric(df['금액'].astype(str).str.replace(',',''), errors='coerce').fillna(0)
-            
-        return df
-    except Exception as e:
-        st.error(f"데이터 불러오기 오류: {e}")
-        return pd.DataFrame()
-
-# ------------------------------------------------------------------
-# [3] 화면 구성 (Real-Time Dashboard)
-# ------------------------------------------------------------------
-st.title("👨‍⚕️ 대시보드")
-st.markdown(f"**{datetime.datetime.now().strftime('%Y년 %m월 %d일')}** 주요 지표 브리핑")
-
+st.title("🏥 Dr. Kim's Intelligent HQ")
+st.markdown(f"**{datetime.date.today().strftime('%Y년 %m월 %d일')}**, 오늘도 최고의 하루를 설계하세요.")
 st.divider()
 
-# 데이터 로딩
-df = load_data()
+# ------------------------------------------------------------------
+# [3] 대시보드 그리드 (카테고리별 정리)
+# ------------------------------------------------------------------
 
-# 1. 상단 요약 지표 (Metrics)
-col1, col2, col3 = st.columns(3)
+# 2단 레이아웃 (왼쪽: 데일리/투자, 오른쪽: 라이프/도구)
+col_left, col_right = st.columns(2)
 
-with col1:
-    st.subheader("🏢 관리비 현황")
-    if not df.empty:
-        # 가장 최근 달 데이터 찾기
-        latest_month = df['청구월'].max()
-        # 그 달의 총액 계산 (여러 항목 합산)
-        this_month_total = df[df['청구월'] == latest_month]['금액'].sum()
+# === [왼쪽 컬럼] ===
+with col_left:
+    # 1. 🌅 하루의 시작 & 생산성
+    with st.container(border=True):
+        st.subheader("🌅 Daily & Productivity")
+        st.caption("하루를 시작하고 기록하는 공간입니다.")
         
-        st.metric(
-            label=f"{latest_month} 청구액",
-            value=f"{this_month_total:,.0f}원",
-            delta="데이터 누적 중..." # 나중에 전월 대비 계산 로직 추가 가능
-        )
-    else:
-        st.info("데이터가 없습니다.")
+        st.page_link("pages/today.py", label="오늘의 브리핑 (날씨/역사/할일)", icon="📅")
+        st.page_link("pages/newsletter.py", label="뉴스레터 요약기", icon="📰")
+        st.page_link("pages/obsidian.py", label="지식 수집 (Obsidian Connector)", icon="🧠")
 
-with col2:
-    st.subheader("📈 투자 포트폴리오")
-    st.metric(label="Tesla (TSLA)", value="$235.40", delta="-1.2%")
+    # 2. 💰 자산 & 병원 경영
+    with st.container(border=True):
+        st.subheader("💰 Asset & Management")
+        st.caption("투자와 자산을 빈틈없이 관리합니다.")
+        
+        st.page_link("pages/stock.py", label="주식 시장 대시보드", icon="📈")
+        st.page_link("pages/investment.py", label="워렌 버핏의 투자 청문회", icon="👨‍⚖️")
+        st.page_link("pages/rent.py", label="병원 관리비 & 임대료", icon="🏢")
 
-with col3:
-    st.subheader("📰 오늘의 뉴스")
-    st.success("✅ [할일] 관리비 데이터 확인")
+# === [오른쪽 컬럼] ===
+with col_right:
+    # 3. 👨‍👩‍👧‍👦 가족 & 라이프스타일
+    with st.container(border=True):
+        st.subheader("👨‍👩‍👧‍👦 Family & Lifestyle")
+        st.caption("가족과의 시간과 개인의 취향을 챙깁니다.")
+        
+        st.page_link("pages/travel.py", label="가족 여행 플래너 & 맛집 검증", icon="✈️")
+        st.page_link("pages/movie.py", label="우리 가족 시네마 천국", icon="🎬")
+        st.page_link("pages/lens.py", label="닥터의 만물 도감 (이미지 분석)", icon="🔍")
+        st.page_link("pages/dream.py", label="프로이트의 꿈 해몽", icon="🔮")
 
+    # 4. 🛠️ 스마트 도구 & 커뮤니케이션
+    with st.container(border=True):
+        st.subheader("🛠️ Smart Tools")
+        st.caption("복잡한 고민과 업무를 AI가 해결해줍니다.")
+        
+        st.page_link("pages/decision.py", label="결정의 신 (A vs B 선택)", icon="⚖️")
+        st.page_link("pages/sms.py", label="환자 안부 문자 (CRM)", icon="📨")
+        st.page_link("pages/english.py", label="글로벌 젠틀맨 (영어 비서)", icon="👔")
+
+# ------------------------------------------------------------------
+# [4] 하단 상태바
+# ------------------------------------------------------------------
 st.divider()
-
-# 2. 메인 그래프 (진짜 데이터 연동)
-st.subheader("📊 병원 관리비 추세 (Real-Time)")
-
-if not df.empty:
-    # 월별 총액 계산 (항목들 다 합쳐서 월별로 묶기)
-    monthly_trend = df.groupby('청구월')['금액'].sum().reset_index()
-    
-    # 막대 그래프 그리기 (최신순 정렬)
-    chart = alt.Chart(monthly_trend).mark_bar().encode(
-        x=alt.X('청구월', sort=None),
-        y=alt.Y('금액', title='청구 금액(원)'),
-        color=alt.value("#4C78A8"),
-        tooltip=['청구월', alt.Tooltip('금액', format=',.0f')]
-    ).properties(
-        height=300
-    )
-    
-    st.altair_chart(chart, use_container_width=True)
-    
-    # 3. 상세 표 보여주기 (접었다 폈다 가능)
-    with st.expander("📋 상세 데이터 대장 보기"):
-        st.dataframe(df.sort_values(by='청구월', ascending=False), use_container_width=True)
-
-else:
-    st.info("📉 아직 저장된 관리비 데이터가 없습니다. 왼쪽 메뉴 [관리비 매니저]에서 고지서를 등록해주세요.")
-    
-st.caption("※ 이 데이터는 구글 시트 'My_Dashboard_DB'에서 실시간으로 가져옵니다.")
-
+st.caption("🚀 Powered by **Gemini AI** & **Streamlit** | System Status: **Online** ✅")
