@@ -6,7 +6,7 @@ st.set_page_config(page_title="닥터의 만물 도감", page_icon="🔍", layou
 
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash') # 이미지 인식 가능한 모델
+model = genai.GenerativeModel('gemini-flash-latest') # 이미지 인식 가능한 모델
 
 st.title("🔍 무엇이든 물어보세요")
 st.caption("꽃, 와인 라벨, 처음 보는 물건... 사진을 찍어 올리세요.")
