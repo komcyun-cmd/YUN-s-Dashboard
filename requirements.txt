@@ -8,3 +8,4 @@ beautifulsoup4
 yfinance
 requests
 plotly
+youtube-transcript-api
