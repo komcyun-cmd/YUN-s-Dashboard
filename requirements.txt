@@ -10,5 +10,6 @@ yfinance
 requests
 plotly
 youtube-transcript-api
-duckduckgo-search
+feedparser
+
 
