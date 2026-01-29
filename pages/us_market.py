@@ -16,7 +16,7 @@ if "GEMINI_API_KEY" in st.secrets:
 model = genai.GenerativeModel('gemini-flash-latest')
 
 # --- 데이터 정의 ---
-# 1. 주요 지수 (V2 핵심)
+# 1. 주요 지수
 INDICES = {
     "^GSPC": "S&P 500",
     "^IXIC": "나스닥",
@@ -25,14 +25,14 @@ INDICES = {
     "KRW=X": "원/달러 환율"
 }
 
-# 2. 집중 분석 대상 (Special 3)
+# 2. 집중 분석 대상
 SPECIALS = {
     "TSLA": "테슬라 (Tesla)",
     "BTC-USD": "비트코인 (Bitcoin)",
     "GOOGL": "구글 (Alphabet)"
 }
 
-# 3. 히트맵용 (V2 유지)
+# 3. 히트맵용
 SECTOR_MAP = {
     "Big Tech": ["AAPL", "MSFT", "GOOGL", "AMZN", "META"],
     "Semi & AI": ["NVDA", "AMD", "AVGO", "TSM", "INTC"],
@@ -46,14 +46,11 @@ SECTOR_MAP = {
 # ------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def get_all_market_data():
-    # 모든 티커 합치기
     all_tickers = list(INDICES.keys()) + list(SPECIALS.keys()) + [t for cat in SECTOR_MAP.values() for t in cat]
-    all_tickers = list(set(all_tickers)) # 중복 제거
+    all_tickers = list(set(all_tickers))
     
-    # 1. 데이터 다운로드
     data = yf.download(all_tickers, period="5d", progress=False)['Close']
     
-    # 2. 요약 정보 생성
     summary = {}
     for t in all_tickers:
         if t in data.columns:
@@ -68,7 +65,6 @@ def get_all_market_data():
         else:
             summary[t] = {"price": 0, "change": 0}
             
-    # 3. 히트맵 데이터프레임
     heatmap_data = []
     for sector, symbols in SECTOR_MAP.items():
         for s in symbols:
@@ -83,11 +79,10 @@ def get_all_market_data():
     return summary, pd.DataFrame(heatmap_data)
 
 def get_special_news():
-    """테슬라, 비트코인, 구글 뉴스만 쏙 뽑아오기"""
     news_dict = {}
     for ticker in SPECIALS.keys():
         try:
-            items = yf.Ticker(ticker).news[:1] # 가장 최신 1개만
+            items = yf.Ticker(ticker).news[:1]
             if items:
                 news_dict[ticker] = items[0]['title']
             else:
@@ -97,10 +92,9 @@ def get_special_news():
     return news_dict
 
 # ------------------------------------------------------------------
-# [3] AI 브리핑 (통합형)
+# [3] AI 브리핑
 # ------------------------------------------------------------------
 def generate_combined_brief(summary, news_map):
-    # 데이터 준비
     vix = summary.get("^VIX", {}).get('price', 0)
     usd = summary.get("KRW=X", {}).get('price', 0)
     
@@ -123,7 +117,7 @@ def generate_combined_brief(summary, news_map):
     - 구글: {googl.get('change', 0):.2f}% (뉴스: {news_map.get('GOOGL')})
     
     [작성 요청]
-    1. **시장 총평 (V2 스타일)**: 거시경제/금리 관점에서 시장 분위기 요약 (국장 영향 포함).
+    1. **시장 총평**: 거시경제/금리 관점에서 시장 분위기 요약 (국장 영향 포함).
     2. **테슬라 & 2차전지**: 주가 원인 분석 + 한국 2차전지주(에코프로 등) 영향.
     3. **구글 & AI**: 빅테크 AI 흐름 분석 + 한국 반도체/SW주 영향.
     4. **비트코인**: 가상자산 시장 분위기.
@@ -146,9 +140,7 @@ with st.spinner("뉴욕 증시 및 3대장 데이터 분석 중... 🔍"):
 if not summary:
     st.error("데이터 로딩 실패")
 else:
-    # ----------------------------------------------------------
-    # 1. 핵심 지표 (V2 스타일)
-    # ----------------------------------------------------------
+    # 1. 핵심 지표
     st.header("1️⃣ 핵심 지표 (Key Metrics)")
     c1, c2, c3, c4, c5 = st.columns(5)
     keys = ["^GSPC", "^IXIC", "^SOX", "^VIX", "KRW=X"]
@@ -156,41 +148,33 @@ else:
     for i, k in enumerate(keys):
         info = summary.get(k, {})
         with [c1, c2, c3, c4, c5][i]:
-            # VIX, 환율은 역방향 컬러
             inv = "inverse" if k in ["^VIX", "KRW=X"] else "normal"
             st.metric(INDICES[k], f"{info.get('price',0):.2f}", f"{info.get('change',0):.2f}%", delta_color=inv)
             
     st.divider()
 
-    # ----------------------------------------------------------
-    # 2. Special 3 집중 분석 (테슬라 / 비트코인 / 구글)
-    # ----------------------------------------------------------
+    # 2. Special 3 집중 분석
     st.header("2️⃣ 🔥 오늘의 3대장 (Focus)")
-    
     sc1, sc2, sc3 = st.columns(3)
     
-    # 테슬라
     with sc1:
         t = summary.get("TSLA", {})
         st.subheader("🚗 Tesla")
         st.metric("등락률", f"${t.get('price',0):.2f}", f"{t.get('change',0):.2f}%")
         st.caption(special_news.get("TSLA", "-"))
 
-    # 비트코인
     with sc2:
         b = summary.get("BTC-USD", {})
         st.subheader("🪙 Bitcoin")
         st.metric("현재가", f"${b.get('price',0):,.2f}", f"{b.get('change',0):.2f}%")
         st.caption(special_news.get("BTC-USD", "-"))
         
-    # 구글
     with sc3:
         g = summary.get("GOOGL", {})
         st.subheader("🔎 Google")
         st.metric("등락률", f"${g.get('price',0):.2f}", f"{g.get('change',0):.2f}%")
         st.caption(special_news.get("GOOGL", "-"))
 
-    # AI 통합 브리핑
     st.markdown("##### 💡 AI 심층 브리핑")
     if "final_brief" not in st.session_state:
         st.session_state.final_brief = generate_combined_brief(summary, special_news)
@@ -203,9 +187,7 @@ else:
 
     st.divider()
 
-    # ----------------------------------------------------------
-    # 3. 마켓 히트맵 (V2 스타일)
-    # ----------------------------------------------------------
+    # 3. 마켓 히트맵 (수정됨)
     st.header("3️⃣ 섹터별 히트맵")
     
     fig = px.treemap(
@@ -213,7 +195,7 @@ else:
         path=[px.Constant("Market"), 'Sector', 'Ticker'], 
         values='Price', 
         color='Change',
-        color_continuous_scale='RdGn', 
+        color_continuous_scale='RdYlGn', # 여기가 'RdGn'에서 'RdYlGn'으로 수정됨
         color_continuous_midpoint=0
     )
     fig.update_layout(height=450, margin=dict(t=0,l=0,r=0,b=0))
