@@ -34,13 +34,12 @@ def get_sheet():
     except:
         return None
 
-# [핵심 수정] 한국 시간 구하는 함수 (서버 시간 + 9시간)
+# [핵심] 한국 시간 구하는 함수
 def get_korea_today():
-    # UTC 현재 시간에서 9시간을 더해 한국 날짜를 반환
     korea_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
     return korea_now.date()
 
-# 날씨 함수 (Open-Meteo)
+# 날씨 함수
 def get_weather():
     try:
         url = "https://api.open-meteo.com/v1/forecast?latitude=36.35&longitude=127.38&current_weather=true&timezone=Asia%2FSeoul"
@@ -81,7 +80,6 @@ def get_daily_content(today_str):
 # ------------------------------------------------------------------
 # [2] 화면 구성
 # ------------------------------------------------------------------
-# [수정] 한국 시간 기준 변수 생성
 today_obj = get_korea_today()
 
 st.title(f"📅 {today_obj.strftime('%m월 %d일')} 아침")
@@ -90,7 +88,6 @@ col1, col2 = st.columns([1, 2])
 with col1:
     st.metric("대전 날씨", get_weather())
 with col2:
-    # 한국 날짜를 기준으로 AI에게 요청
     info = get_daily_content(today_obj.strftime("%Y년 %m월 %d일"))
     if info:
         st.info(f"📜 **오늘의 역사**\n\n{info['history']}")
@@ -111,16 +108,12 @@ st.divider()
 tab1, tab2, tab3 = st.tabs(["✅ 할 일 (Smart)", "📝 빠른 메모", "🛠️ 데이터 수정/관리"])
 
 # ==================================================================
-# [탭 1] 스마트 할 일 (날짜 선택 추가됨)
+# [탭 1] 스마트 할 일
 # ==================================================================
 with tab1:
-    # 1. 입력 폼 (날짜, 내용, 반복)
     with st.expander("➕ 새 일정 추가하기", expanded=False):
         with st.form("todo_form", clear_on_submit=True):
-            # 컬럼을 3개로 나눔: [날짜] [내용] [반복]
             c1, c2, c3 = st.columns([1, 2, 1])
-            
-            # [수정] 날짜 선택기의 기본값도 한국 시간 오늘로 변경
             target_date = c1.date_input("날짜", today_obj)
             task = c2.text_input("내용", placeholder="예: 치과 예약")
             repeat = c3.selectbox("반복", ["없음", "매일", "매주", "매월"])
@@ -128,17 +121,10 @@ with tab1:
             if st.form_submit_button("추가"):
                 sheet = get_sheet()
                 if sheet:
-                    # 선택한 날짜(target_date)로 저장
                     sheet.append_row([str(target_date), "일정", task, "FALSE", repeat])
-                    
-                    # 안내 메시지
-                    if target_date > today_obj:
-                        st.toast(f"📅 {target_date} 일정으로 예약되었습니다! (그날 보여집니다)")
-                    else:
-                        st.toast("일정이 추가되었습니다!")
+                    st.toast("일정이 추가되었습니다!")
                     st.rerun()
 
-    # 2. 리스트 & 체크 로직
     sheet = get_sheet()
     if sheet:
         data = sheet.get_all_records()
@@ -147,7 +133,6 @@ with tab1:
         if not df.empty:
             df['날짜_dt'] = pd.to_datetime(df['날짜'], errors='coerce').dt.date
             
-            # [수정] 오늘 날짜 필터링도 한국 시간(today_obj) 기준
             cond_today = (df['날짜_dt'] == today_obj)
             cond_daily = (df['반복'] == '매일')
             cond_weekly = (df['반복'] == '매주') & (pd.to_datetime(df['날짜'], errors='coerce').dt.weekday == today_obj.weekday())
@@ -161,8 +146,9 @@ with tab1:
             
             if not today_tasks.empty:
                 st.write(f"오늘 할 일: **{len(today_tasks)}개**")
-                
                 for idx, row in today_tasks.iterrows():
+                    # 데이터프레임 인덱스(idx)는 0부터 시작, 구글 시트는 헤더(1행) 제외 데이터가 2행부터 시작
+                    # get_all_records()로 가져왔으므로 idx + 2 가 실제 시트 행 번호
                     is_checked = st.checkbox(f"{row['내용']} ({row['반복']})", key=f"chk_{idx}")
                     if is_checked:
                         try:
@@ -175,50 +161,71 @@ with tab1:
                 st.caption("오늘 예정된 할 일이 없습니다. ☕")
 
 # ==================================================================
-# [탭 2] 빠른 메모
+# [탭 2] 빠른 메모 (수정 기능 추가됨)
 # ==================================================================
 with tab2:
+    # 1. 메모 입력
+    st.subheader("🖊️ 메모 기록")
     with st.form("memo_form", clear_on_submit=True):
-        note = st.text_area("메모 입력", height=80, placeholder="아이디어를 적어두세요.")
+        note = st.text_area("내용", height=80, placeholder="아이디어를 적어두세요.")
         if st.form_submit_button("저장"):
             if note:
                 sheet = get_sheet()
-                # [수정] 메모 저장 날짜도 한국 시간
                 sheet.append_row([str(today_obj), "메모", note, "", "없음"])
-                st.toast("저장됨")
+                st.toast("메모 저장됨")
                 st.rerun()
     
+    st.divider()
+
+    # 2. 최근 메모 리스트 & 수정 기능
+    st.subheader("📜 최근 메모")
+    
     if not df.empty:
-        memos = df[df['유형'] == '메모'].sort_values(by='날짜', ascending=False).head(3)
-        for _, row in memos.iterrows():
-            st.text(f"[{row['날짜']}] {row['내용']}")
+        # '메모' 유형만 필터링하고 최신순 정렬
+        # 원본 행 번호(row_idx)를 보존하기 위해 인덱스를 컬럼으로 만듦
+        df_memo = df[df['유형'] == '메모'].copy()
+        df_memo['original_row'] = df_memo.index + 2 # 시트 행 번호 계산 (헤더=1행 이므로 +2)
+        df_memo = df_memo.sort_values(by='날짜', ascending=False).head(5) # 최근 5개만
+
+        if not df_memo.empty:
+            # 2-1. 보기 모드
+            for _, row in df_memo.iterrows():
+                st.text(f"[{row['날짜']}] {row['내용']}")
+
+            # 2-2. 수정 모드 (Expander)
+            with st.expander("📝 지난 메모 수정하기 (오타 수정)", expanded=False):
+                # 선택 박스를 위한 라벨 만들기
+                memo_options = {f"[{r['날짜']}] {r['내용'][:15]}...": r['original_row'] for _, r in df_memo.iterrows()}
+                
+                selected_label = st.selectbox("수정할 메모 선택", list(memo_options.keys()))
+                
+                if selected_label:
+                    target_row_idx = memo_options[selected_label]
+                    # 현재 선택된 메모의 전체 내용 찾기
+                    current_content = df.loc[target_row_idx - 2, '내용'] # df 인덱스는 row_idx - 2
+                    
+                    new_content = st.text_area("수정할 내용", value=current_content, height=100)
+                    
+                    if st.button("수정 완료 💾"):
+                        sheet = get_sheet()
+                        # 3번째 컬럼이 '내용' 컬럼임
+                        sheet.update_cell(target_row_idx, 3, new_content)
+                        st.toast("수정되었습니다! ✨")
+                        st.rerun()
+        else:
+            st.caption("저장된 메모가 없습니다.")
 
 # ==================================================================
-# [탭 3] 🛠️ 데이터 수정/관리
+# [탭 3] 데이터 관리
 # ==================================================================
 with tab3:
     st.markdown("### 📋 전체 데이터 편집기")
-    st.caption("수정 후 아래 '저장' 버튼을 꼭 눌러주세요.")
-    
     if sheet:
-        raw_data = sheet.get_all_records()
-        edit_df = pd.DataFrame(raw_data)
-        
-        edited_df = st.data_editor(
-            edit_df,
-            num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True,
-            key="editor"
-        )
-        
-        if st.button("💾 변경사항 클라우드에 저장 (주의!)", type="primary"):
-            with st.spinner("동기화 중..."):
-                try:
-                    sheet.clear()
-                    sheet.append_row(edited_df.columns.tolist())
-                    sheet.append_rows(edited_df.values.tolist())
-                    st.success("완벽하게 저장되었습니다! ✅")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"저장 중 오류: {e}")
+        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, hide_index=True)
+        if st.button("💾 변경사항 전체 저장", type="primary"):
+            with st.spinner("저장 중..."):
+                sheet.clear()
+                sheet.append_row(edited_df.columns.tolist())
+                sheet.append_rows(edited_df.values.tolist())
+                st.success("저장 완료! ✅")
+                st.rerun()
