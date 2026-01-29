@@ -1,101 +1,153 @@
 import streamlit as st
 import google.generativeai as genai
-from youtube_transcript_api import YouTubeTranscriptApi
-from urllib.parse import urlparse, parse_qs
+import yt_dlp
+import requests
+import json
+import re
 
-st.set_page_config(page_title="유튜브 인사이트 채굴기", page_icon="⛏️", layout="centered")
+# ------------------------------------------------------------------
+# [1] 설정
+# ------------------------------------------------------------------
+st.set_page_config(page_title="유튜브 인사이트 채굴기 (Pro)", page_icon="⛏️", layout="centered")
 
-# API 키 설정
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 model = genai.GenerativeModel('gemini-flash-latest')
 
-def get_video_id(url):
-    query = urlparse(url)
-    if query.hostname == 'youtu.be': return query.path[1:]
-    if query.hostname in ('www.youtube.com', 'youtube.com'):
-        if query.path == '/watch': return parse_qs(query.query)['v'][0]
-        if query.path[:7] == '/embed/': return query.path.split('/')[2]
-        if query.path[:3] == '/v/': return query.path.split('/')[2]
-    return None
+# ------------------------------------------------------------------
+# [2] 강력한 자막 추출 함수 (yt-dlp 사용)
+# ------------------------------------------------------------------
+def get_transcript_with_ytdlp(video_url):
+    """
+    yt-dlp를 사용하여 유튜브의 자동생성 자막(스크립트)을 강제로 추출합니다.
+    IP 차단을 우회하고 더 강력하게 데이터를 가져옵니다.
+    """
+    ydl_opts = {
+        'skip_download': True,      # 영상은 다운로드 안 함
+        'writeautomaticsub': True,  # 자동 생성 자막 가져오기
+        'writesubtitles': True,     # 수동 자막도 가져오기
+        'subtitleslangs': ['ko', 'en'], # 한국어 우선, 없으면 영어
+        'quiet': True,              # 로그 출력 끄기
+    }
 
-# [핵심 수정] 자막 가져오기 기능 강화 (번역 기능 추가)
-def get_transcript_text(video_id):
     try:
-        # 1. 해당 영상의 모든 자막 리스트를 가져옵니다.
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        
-        transcript = None
-        
-        # 2. 우선순위: 한국어(수동) -> 한국어(자동) -> 영어 -> 아무거나
-        try:
-            # 한국어 자막이 있는지 시도 (수동/자동 포함)
-            transcript = transcript_list.find_transcript(['ko'])
-        except:
-            # 한국어가 없으면, '번역 가능한' 아무 자막이나 가져옵니다.
-            try:
-                # 영어 자막 시도
-                transcript = transcript_list.find_transcript(['en'])
-            except:
-                # 영여도 없으면, 리스트의 첫 번째 자막(보통 자동생성)을 가져옴
-                for t in transcript_list:
-                    transcript = t
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # 1. 영상 정보 추출
+            info = ydl.extract_info(video_url, download=False)
+            
+            # 2. 자막 데이터 찾기 (수동 -> 자동 순서)
+            subs = info.get('subtitles', {})
+            auto_subs = info.get('automatic_captions', {})
+            
+            # 우선순위: 한국어(수동) > 한국어(자동) > 영어(수동) > 영어(자동)
+            target_sub = None
+            
+            # (1) 한국어 찾기
+            if 'ko' in subs: target_sub = subs['ko']
+            elif 'ko' in auto_subs: target_sub = auto_subs['ko']
+            # (2) 영어 찾기
+            elif 'en' in subs: target_sub = subs['en']
+            elif 'en' in auto_subs: target_sub = auto_subs['en']
+            
+            # (3) 아무거나 찾기 (위에서 못 찾았을 경우)
+            if not target_sub:
+                # 사용 가능한 첫 번째 언어라도 가져옴
+                if auto_subs:
+                    first_lang = list(auto_subs.keys())[0]
+                    target_sub = auto_subs[first_lang]
+
+            if not target_sub:
+                return None, "자막 트랙을 찾을 수 없습니다."
+
+            # 3. JSON3 포맷의 자막 URL 찾기 (가장 파싱하기 좋음)
+            json3_url = None
+            for fmt in target_sub:
+                if fmt.get('ext') == 'json3':
+                    json3_url = fmt['url']
                     break
             
-            # 3. 가져온 자막을 한국어로 번역합니다. (이게 핵심!)
-            if transcript:
-                transcript = transcript.translate('ko')
+            if not json3_url:
+                # JSON3가 없으면 첫 번째 포맷 사용
+                json3_url = target_sub[0]['url']
 
-        # 4. 자막 텍스트 추출 및 포맷팅
-        if transcript:
-            result = transcript.fetch()
-            full_text = ""
-            for entry in result:
-                start_min = int(entry['start'] // 60)
-                start_sec = int(entry['start'] % 60)
-                full_text += f"[{start_min:02d}:{start_sec:02d}] {entry['text']} "
-            return full_text
+            # 4. 자막 내용 다운로드 및 파싱
+            response = requests.get(json3_url)
+            caption_data = response.json()
             
-        return None
+            full_text = ""
+            events = caption_data.get('events', [])
+            
+            for event in events:
+                # 시간 정보 (밀리초 -> 분:초)
+                start_ms = event.get('tStartMs', 0)
+                start_sec = int(start_ms / 1000)
+                m, s = divmod(start_sec, 60)
+                time_str = f"[{m:02d}:{s:02d}]"
+                
+                # 텍스트 합치기
+                segs = event.get('segs', [])
+                text = "".join([seg.get('utf8', '') for seg in segs]).strip()
+                
+                if text:
+                    full_text += f"{time_str} {text} "
+            
+            return full_text, None
 
     except Exception as e:
-        # st.error(f"자막 추출 실패 상세: {e}") # 디버깅용
-        return None
+        return None, str(e)
 
-st.title("⛏️ 유튜브 인사이트 채굴기")
-url = st.text_input("유튜브 링크 입력")
+# ------------------------------------------------------------------
+# [3] 메인 화면
+# ------------------------------------------------------------------
+st.title("⛏️ 유튜브 인사이트 채굴기 (Pro)")
+st.caption("기존 방식이 안 될 때 사용하는 강력한 버전입니다.")
 
-if st.button("분석 시작 🚀"):
+url = st.text_input("유튜브 링크 입력 (공유 버튼 -> 링크 복사)")
+
+if st.button("분석 시작 🚀", type="primary"):
     if url:
-        vid = get_video_id(url)
-        if vid:
-            st.image(f"https://img.youtube.com/vi/{vid}/hqdefault.jpg")
+        # 영상 ID 추출 (썸네일용)
+        video_id = None
+        if "v=" in url: video_id = url.split("v=")[1].split("&")[0]
+        elif "youtu.be" in url: video_id = url.split("/")[-1].split("?")[0]
+        
+        if video_id:
+            st.image(f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg", width=300)
+        
+        with st.spinner("⛏️ 영상의 스크립트를 강제로 채굴 중입니다... (약간의 시간이 걸립니다)"):
+            script, error = get_transcript_with_ytdlp(url)
             
-            with st.spinner("자막 추출 및 분석 중..."):
-                script = get_transcript_text(vid)
+            if script:
+                # 너무 길면 자르기 (AI 토큰 한계 고려)
+                final_script = script[:30000]
                 
-                if script:
-                    # 너무 긴 자막 자르기 (토큰 제한 방지)
-                    truncated_script = script[:25000] 
+                prompt = f"""
+                다음은 유튜브 영상의 자막 스크립트야. 내용을 완벽하게 분석해줘.
+                
+                [스크립트 데이터]
+                {final_script}
+                
+                [요청사항]
+                1. **3줄 요약**: 바쁜 나를 위해 핵심만 딱 요약해.
+                2. **챕터별 요약**: 타임스탬프([00:00])를 포함해서 주요 내용을 정리해.
+                3. **핵심 인사이트**: 이 영상에서 배울 수 있는 점이나 결론.
+                """
+                
+                try:
+                    st.success("자막 추출 성공! AI 분석을 시작합니다... 🧠")
+                    res = model.generate_content(prompt)
+                    st.markdown("### 📊 분석 결과")
+                    st.markdown(res.text)
                     
-                    prompt = f"""
-                    다음 유튜브 자막을 분석해줘. 시간 정보 [분:초]를 활용해.
-                    [자막 데이터]
-                    {truncated_script}
-                    
-                    [요청사항]
-                    1. 3줄 요약 (명확하게)
-                    2. 핵심 챕터 (타임스탬프 필수 포함)
-                    3. 이 영상에서 얻을 수 있는 인사이트
-                    """
-                    try:
-                        res = model.generate_content(prompt)
-                        st.markdown(res.text)
-                    except Exception as e:
-                        st.error(f"AI 분석 중 오류 발생: {e}")
-                else:
-                    st.error("이 영상은 자막(자동생성 포함)을 지원하지 않아 분석할 수 없습니다. 😭")
-                    st.info("Tip: '동영상' 탭이 아닌 'Shorts'나 자막이 아예 없는 뮤직비디오는 안 될 수 있습니다.")
-        else:
-            st.error("올바른 유튜브 링크가 아닙니다.")
+                    with st.expander("📜 원본 스크립트 보기"):
+                        st.text(script)
+                        
+                except Exception as e:
+                    st.error(f"AI 분석 오류: {e}")
+            else:
+                st.error("분석 실패 😭")
+                st.warning(f"이유: {error}")
+                st.info("Tip: 링크가 정확한지, 혹은 유료 멤버십 영상인지 확인해주세요.")
+    else:
+        st.warning("링크를 입력해주세요.")
