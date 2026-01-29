@@ -5,8 +5,8 @@ import datetime
 # [1] 페이지 설정
 # ------------------------------------------------------------------
 st.set_page_config(
-    page_title="YUN's's Intelligent HQ", 
-    page_icon="🏥", 
+    page_title="YUN's Intelligent HQ",
+    page_icon="🏥",
     layout="wide"
 )
 
@@ -34,15 +34,16 @@ with col_left:
         st.page_link("pages/newsletter.py", label="뉴스레터 요약기", icon="📰")
         st.page_link("pages/obsidian.py", label="지식 수집 (Obsidian)", icon="🧠")
 
-    # 2. 💰 자산 & 병원
+    # 2. 💰 자산 & 병원 (여기에 추가했습니다!)
     with st.container(border=True):
         st.subheader("💰 Asset & Management")
         st.caption("투자와 병원 경영 관리")
         
-        st.page_link("pages/stock.py", label="주식 시장 대시보드", icon="📈")
-        # [NEW] 적정 주가 판독기 추가
-        st.page_link("pages/valuation.py", label="적정 주가 판독기 (S-RIM)", icon="🧮")
+        # [NEW] 요청하신 미국 증시 추가
+        st.page_link("pages/us_market.py", label="월스트리트 인사이드 (미국 증시)", icon="🗽")
         
+        st.page_link("pages/stock.py", label="주식 시장 대시보드", icon="📈")
+        st.page_link("pages/valuation.py", label="적정 주가 판독기 (S-RIM)", icon="🧮")
         st.page_link("pages/investment.py", label="워렌 버핏의 투자 청문회", icon="👨‍⚖️")
         st.page_link("pages/rent.py", label="병원 관리비 매니저", icon="🏢")
 
