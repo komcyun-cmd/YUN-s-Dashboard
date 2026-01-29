@@ -11,5 +11,6 @@ requests
 plotly
 youtube-transcript-api
 feedparser
+yt-dlp
 
 
