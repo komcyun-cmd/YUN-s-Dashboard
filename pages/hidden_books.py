@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import json
 import urllib.parse
-import re  # <--- [핵심] 정밀 데이터 추출 도구 추가
+import re
 
 # ------------------------------------------------------------------
 # [1] 설정
@@ -12,10 +12,19 @@ st.set_page_config(page_title="심해의 서재", page_icon="🕯️", layout="c
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-model = genai.GenerativeModel('gemini-flash-latest')
+# [핵심] JSON 포맷을 강제하기 위한 설정
+generation_config = {
+    "temperature": 1,
+    "response_mime_type": "application/json",
+}
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash", # 모델명 명시 (JSON 모드 지원)
+    generation_config=generation_config
+)
 
 # ------------------------------------------------------------------
-# [2] 기능 함수 (수정됨)
+# [2] 기능 함수
 # ------------------------------------------------------------------
 def generate_recommendation(category, keyword):
     prompt = f"""
@@ -31,7 +40,7 @@ def generate_recommendation(category, keyword):
     - 대중적이지 않지만 깊이가 압도적인 '숨은 명저'.
     
     [필수 출력 형식]
-    다른 말 하지 말고 오직 아래 JSON 데이터만 출력해:
+    JSON 스키마를 준수하세요:
     {{
         "title": "책 제목",
         "author": "저자",
@@ -41,16 +50,11 @@ def generate_recommendation(category, keyword):
     }}
     """
     try:
+        # JSON 모드를 켰으므로 response.text는 무조건 JSON 문자열입니다.
         response = model.generate_content(prompt)
-        text = response.text
-        
-        # [핵심 수정] AI가 잡담을 섞어도 {} 안에 있는 JSON만 강제로 끄집어냄
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        else:
-            return None
+        return json.loads(response.text)
     except Exception as e:
+        st.error(f"데이터 파싱 오류: {e}") # 에러 내용을 직접 보여줌
         return None
 
 # ------------------------------------------------------------------
@@ -72,27 +76,29 @@ with col2:
 
 if st.button("서고 탐색 시작 🗝️", type="primary"):
     if keyword:
-        with st.spinner("먼지 쌓인 서가에서 보물을 찾는 중입니다..."):
+        with st.spinner("먼지 쌓인 서가에서 (구할 수 있는) 보물을 찾는 중입니다..."):
             book_info = generate_recommendation(category, keyword)
             
             if book_info:
-                st.success(f"'{book_info['title']}'을(를) 찾았습니다.")
+                st.success(f"'{book_info.get('title', '책')}'을(를) 찾았습니다.")
                 
                 # 1. 책 정보 카드
                 with st.container(border=True):
-                    st.subheader(f"📖 {book_info['title']}")
-                    st.caption(f"저자: {book_info['author']}")
+                    st.subheader(f"📖 {book_info.get('title', '제목 없음')}")
+                    st.caption(f"저자: {book_info.get('author', '미상')}")
                     
-                    st.markdown(f"**💭 발굴 이유:**\n{book_info['reason']}")
+                    st.markdown(f"**💭 발굴 이유:**\n{book_info.get('reason', '')}")
                     st.markdown(f"---")
-                    st.markdown(f"**❝ 결정적 문장:**\n*{book_info['quote']}*")
-                    st.markdown(f"**👤 추천 대상:** {book_info['target']}")
+                    st.markdown(f"**❝ 결정적 문장:**\n*{book_info.get('quote', '')}*")
+                    st.markdown(f"**👤 추천 대상:** {book_info.get('target', '')}")
                 
                 # 2. 도서관/서점 검색
                 st.divider()
                 st.subheader("🏛️ 소장 확인")
                 
-                query = urllib.parse.quote(book_info['title'])
+                # 검색어 인코딩 (제목이 없을 경우 대비)
+                title_query = book_info.get('title', '')
+                query = urllib.parse.quote(title_query)
                 
                 # 유성구 통합도서관
                 yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
@@ -112,9 +118,10 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                     st.link_button("📕 교보문고 정보", kyobo_url)
                 
                 st.caption("※ 버튼이 작동하지 않으면 아래 제목을 복사하세요.")
-                st.code(book_info['title'], language="text")
+                st.code(title_query, language="text")
                     
             else:
-                st.error("AI가 책을 찾다가 졸았나 봅니다. 다시 한 번 버튼을 눌러주세요. 😴")
+                # book_info가 None인 경우 (위의 except 블록에서 에러 메시지가 이미 출력됨)
+                st.warning("일시적인 오류입니다. 키워드를 조금 바꿔서 다시 시도해주세요.")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
