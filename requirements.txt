@@ -12,5 +12,6 @@ plotly
 youtube-transcript-api
 feedparser
 yt-dlp
+pypdf
 
 
