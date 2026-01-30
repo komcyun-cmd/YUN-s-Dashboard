@@ -22,12 +22,13 @@ def generate_recommendation(category, keyword):
     사용자가 '{category}' 분야에서 '{keyword}'와 관련된 책을 찾습니다.
     
     [절대 금지]
-    - 베스트셀러, 누구나 아는 유명한 책 금지.
-    - 자기계발서 금지.
+    1. 베스트셀러, 누구나 아는 유명한 책 금지.
+    2. 자기계발서 금지.
+    3. **절판된 책 절대 금지** (현재 서점이나 도서관에서 구할 수 있어야 함).
     
     [추천 기준]
-    - 절판되었거나 구하기 힘들어도 깊이가 압도적인 '숨은 명저'.
-    - 전문가들만 아는 인생의 책.
+    - 대중적이지 않지만, 현재 출판 중이고 구할 수 있는 '숨은 명저'.
+    - 전문가들 사이에서 알음알음 전해지는 인생의 책.
     
     [필수 출력 형식]
     반드시 아래 JSON 포맷으로만 답변해. 다른 말 섞지 마.
@@ -50,7 +51,7 @@ def generate_recommendation(category, keyword):
 # [3] 화면 구성
 # ------------------------------------------------------------------
 st.title("🕯️ 심해의 서재 (Hidden Gems)")
-st.caption("베스트셀러는 거부합니다. 유성구 도서관 구석에 있을법한 명저를 찾아드립니다.")
+st.caption("베스트셀러는 거부합니다. 하지만 '구할 수 있는' 숨은 명저만 엄선합니다.")
 
 st.divider()
 
@@ -65,11 +66,11 @@ with col2:
 
 if st.button("서고 탐색 시작 🗝️", type="primary"):
     if keyword:
-        with st.spinner("먼지 쌓인 서가에서 보물을 찾는 중입니다..."):
+        with st.spinner("먼지 쌓인 서가에서 (구할 수 있는) 보물을 찾는 중입니다..."):
             book_info = generate_recommendation(category, keyword)
             
             if book_info:
-                st.success("발견했습니다.")
+                st.success(f"'{book_info['title']}'을(를) 찾았습니다.")
                 
                 # 1. 책 정보 카드
                 with st.container(border=True):
@@ -81,48 +82,33 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                     st.markdown(f"**❝ 결정적 문장:**\n*{book_info['quote']}*")
                     st.markdown(f"**👤 추천 대상:** {book_info['target']}")
                 
-                # 2. 도서관 검색 (링크 수정 완료)
+                # 2. 도서관/서점 검색
                 st.divider()
-                st.subheader("🏛️ 도서관 소장 확인")
+                st.subheader("🏛️ 소장 확인")
                 
-                # 검색어 인코딩
                 query = urllib.parse.quote(book_info['title'])
                 
-                # [수정 1] 유성구 통합도서관 (기존 유지)
+                # 유성구 통합도서관
                 yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
                 
-                # [수정 2] 대전 사이버 도서관 (통합 검색) - 한밭도서관 포함 전체 검색
-                # 이 주소는 대전시 전체 도서관을 통합 검색하는 표준 URL입니다.
+                # 대전 통합 검색 (한밭 등 포함)
                 daejeon_unified_url = f"https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q={query}"
                 
-                # [수정 3] 네이버 도서 검색 (최후의 보루)
+                # 네이버 책 (구매용)
                 naver_url = f"https://search.naver.com/search.naver?where=nexearch&sm=top_hty&fbm=0&ie=utf8&query={query}+책"
 
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.link_button(
-                        label="📍 유성구 도서관", 
-                        url=yuseong_url, 
-                        help="유성구 내 도서관(노은/진잠 등)을 검색합니다."
-                    )
+                    st.link_button("📍 유성구 도서관", yuseong_url)
                 with c2:
-                    st.link_button(
-                        label="🔍 대전 전체 통합검색", 
-                        url=daejeon_unified_url,
-                        help="한밭도서관을 포함한 대전시 전체를 검색합니다."
-                    )
+                    st.link_button("🔍 대전 전체 도서관", daejeon_unified_url)
                 with c3:
-                    st.link_button(
-                        label="📗 네이버 책 정보", 
-                        url=naver_url,
-                        help="도서관에 없다면 구매처나 리뷰를 확인하세요."
-                    )
+                    st.link_button("📗 네이버 책 정보", naver_url)
                 
-                # 제목 복사 기능
                 st.caption("※ 버튼이 작동하지 않으면 아래 제목을 복사하세요.")
                 st.code(book_info['title'], language="text")
                     
             else:
-                st.error("AI가 책을 찾다가 길을 잃었습니다. 다시 시도해주세요.")
+                st.error("조건에 맞는 책을 찾지 못했습니다. 다시 시도해주세요.")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
