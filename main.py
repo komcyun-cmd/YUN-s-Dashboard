@@ -35,7 +35,7 @@ with col_left:
         st.page_link("pages/newsletter.py", label="뉴스레터 요약기", icon="📰")
         st.page_link("pages/obsidian.py", label="지식 수집 (Obsidian)", icon="🧠")
 
-    # 2. 💰 자산 & 병원 (여기에 추가됨!)
+    # 2. 💰 자산 & 병원
     with st.container(border=True):
         st.subheader("💰 Asset & Management")
         st.caption("투자와 병원 경영 관리")
@@ -68,8 +68,10 @@ with col_right:
         st.subheader("🛠️ Smart Tools")
         st.caption("AI가 당신의 시간을 벌어줍니다.")
         
-        # [Update] 유튜브 도구 연결
         st.page_link("pages/youtube.py", label="유튜브 인사이트 채굴기", icon="⛏️")
+        
+        # [NEW] 여기에 PDF 요약기 추가됨!
+        st.page_link("pages/pdf_summary.py", label="논문/보고서 3초 요약기", icon="📑")
         
         st.page_link("pages/decision.py", label="결정의 신 (A vs B)", icon="⚖️")
         st.page_link("pages/sms.py", label="환자 안부 문자 (CRM)", icon="📨")
