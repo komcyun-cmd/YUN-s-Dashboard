@@ -17,7 +17,6 @@ model = genai.GenerativeModel('gemini-flash-latest')
 # [2] 기능 함수
 # ------------------------------------------------------------------
 def generate_recommendation(category, keyword):
-    # AI에게 JSON 형식으로 답을 달라고 강제합니다. (데이터 처리를 위해)
     prompt = f"""
     당신은 50년 경력의 고집 센 '헌책방 주인'입니다.
     사용자가 '{category}' 분야에서 '{keyword}'와 관련된 책을 찾습니다.
@@ -42,7 +41,6 @@ def generate_recommendation(category, keyword):
     """
     try:
         response = model.generate_content(prompt)
-        # JSON 파싱 (혹시 모를 마크다운 기호 제거)
         clean_text = response.text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_text)
     except Exception as e:
@@ -73,7 +71,7 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
             if book_info:
                 st.success("발견했습니다.")
                 
-                # 1. 책 정보 카드 표시
+                # 1. 책 정보 카드
                 with st.container(border=True):
                     st.subheader(f"📖 {book_info['title']}")
                     st.caption(f"저자: {book_info['author']}")
@@ -83,38 +81,40 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                     st.markdown(f"**❝ 결정적 문장:**\n*{book_info['quote']}*")
                     st.markdown(f"**👤 추천 대상:** {book_info['target']}")
                 
-                # 2. 유성구 도서관 연동 버튼 (핵심!)
+                # 2. 도서관 검색 (수정된 URL)
                 st.divider()
-                st.subheader("🏛️ 도서관에서 찾기")
+                st.subheader("🏛️ 도서관 소장 확인")
                 
-                # URL 인코딩 (한글 제목을 인터넷 주소로 변환)
+                # 검색어 인코딩
                 query = urllib.parse.quote(book_info['title'])
                 
-                # 유성구 도서관 실제 검색 URL 패턴
-                yuseong_url = f"https://lib.yuseong.go.kr/web/search/searchResult.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
+                # [수정 1] 유성구 통합도서관 (정확한 최신 경로)
+                # 경로: /web/program/searchResultList.do
+                yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
                 
-                # 대전 통합 도서관 (한밭도서관 등) - 혹시 유성에 없을까봐
-                daejeon_url = f"https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q={query}"
+                # [수정 2] 한밭도서관 (대전 대표, 유성구와 같은 시스템 사용 확률 높음)
+                # 대전 통합검색이 불안정하여 한밭도서관으로 변경
+                hanbat_url = f"https://www.hanbatlibrary.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
                 
                 c1, c2 = st.columns(2)
                 with c1:
-                    # 버튼을 누르면 새 창으로 도서관 검색 결과가 뜸
                     st.link_button(
-                        label="📍 유성구 도서관 검색 (클릭)", 
+                        label="📍 유성구 도서관 검색 (노은/유성/진잠)", 
                         url=yuseong_url, 
-                        help="유성구 통합도서관 검색 페이지로 바로 이동합니다."
+                        help="클릭하면 바로 검색 결과가 뜹니다."
                     )
                 with c2:
                     st.link_button(
-                        label="🔍 대전 전체 도서관 검색", 
-                        url=daejeon_url,
-                        help="유성에 없으면 대전 전체를 뒤집니다."
+                        label="🔍 한밭도서관 검색 (대전 전체)", 
+                        url=hanbat_url,
+                        help="유성에 없다면 대전 대표 도서관을 찾아봅니다."
                     )
+                
+                # 3. 혹시 몰라 제목 복사 기능 제공
+                st.caption("※ 만약 버튼으로 검색이 안 되면, 아래 제목을 복사해서 이용하세요.")
+                st.code(book_info['title'], language="text")
                     
             else:
                 st.error("AI가 책을 찾다가 길을 잃었습니다. 다시 시도해주세요.")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
-
-st.divider()
-st.caption("Tip: '유성구 도서관 검색' 버튼을 누르면 대출 가능 여부를 바로 확인할 수 있습니다.")
