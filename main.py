@@ -40,10 +40,9 @@ with col_left:
         st.subheader("💰 Asset & Management")
         st.caption("투자와 병원 경영 관리")
         
-        # [NEW] 머니 플로우 (자금 추적)
+        # 머니 플로우
         st.page_link("pages/flow.py", label="🐋 머니 플로우 (자금 추적기)", icon="🌊")
-        
-        # [NEW] 미국 증시
+        # 미국 증시
         st.page_link("pages/us_market.py", label="🇺🇸 월스트리트 인사이드", icon="🗽")
         
         st.page_link("pages/valuation.py", label="🧮 적정 주가 판독기 (S-RIM)", icon="⚖️")
@@ -53,13 +52,16 @@ with col_left:
 
 # === [오른쪽 컬럼] ===
 with col_right:
-    # 3. 👨‍👩‍👧‍👦 가족 & 라이프
+    # 3. 👨‍👩‍👧‍👦 가족 & 라이프 & 휴식
     with st.container(border=True):
-        st.subheader("👨‍👩‍👧‍👦 Family & Lifestyle")
-        st.caption("가족과의 소중한 시간")
+        st.subheader("☕ Life & Inspiration")
+        st.caption("가족과의 시간, 그리고 나만의 지적 유희")
         
-        st.page_link("pages/travel.py", label="가족 여행 플래너", icon="✈️")
+        # [NEW] 심해의 서재 추가!
+        st.page_link("pages/hidden_books.py", label="심해의 서재 (숨은 명저 찾기)", icon="🕯️")
+        
         st.page_link("pages/movie.py", label="우리 가족 시네마", icon="🎬")
+        st.page_link("pages/travel.py", label="가족 여행 플래너", icon="✈️")
         st.page_link("pages/lens.py", label="닥터의 만물 도감", icon="🔍")
         st.page_link("pages/dream.py", label="프로이트의 꿈 해몽", icon="🔮")
 
@@ -69,8 +71,6 @@ with col_right:
         st.caption("AI가 당신의 시간을 벌어줍니다.")
         
         st.page_link("pages/youtube.py", label="유튜브 인사이트 채굴기", icon="⛏️")
-        
-        # [NEW] 여기에 PDF 요약기 추가됨!
         st.page_link("pages/pdf_summary.py", label="논문/보고서 3초 요약기", icon="📑")
         
         st.page_link("pages/decision.py", label="결정의 신 (A vs B)", icon="⚖️")
