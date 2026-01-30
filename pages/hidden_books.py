@@ -3,6 +3,7 @@ import google.generativeai as genai
 import json
 import urllib.parse
 import re
+import ast # <--- [핵심] 유연한 해석기 추가
 
 # ------------------------------------------------------------------
 # [1] 설정
@@ -12,11 +13,10 @@ st.set_page_config(page_title="심해의 서재", page_icon="🕯️", layout="c
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# [수정] 가장 호환성이 좋은 모델명으로 변경
 model = genai.GenerativeModel('gemini-flash-latest')
 
 # ------------------------------------------------------------------
-# [2] 기능 함수
+# [2] 기능 함수 (강력해짐)
 # ------------------------------------------------------------------
 def generate_recommendation(category, keyword):
     prompt = f"""
@@ -26,17 +26,17 @@ def generate_recommendation(category, keyword):
     [절대 금지]
     1. 베스트셀러, 누구나 아는 유명한 책 금지.
     2. 자기계발서 금지.
-    3. **절판된 책 절대 금지** (현재 구할 수 있어야 함).
+    3. 절판된 책 절대 금지.
     
     [추천 기준]
     - 대중적이지 않지만 깊이가 압도적인 '숨은 명저'.
     
-    [필수 출력 형식]
-    **반드시 아래 JSON 포맷으로만 답변하세요.** 다른 인삿말이나 설명은 절대 하지 마세요. 오직 JSON 데이터만 출력하세요.
+    [필수 출력 형식 - Python Dictionary]
+    반드시 아래 파이썬 딕셔너리 형태로 답변해. 설명 붙이지 마.
     {{
         "title": "책 제목",
         "author": "저자",
-        "reason": "추천 이유 (시니컬하고 깊이 있게)",
+        "reason": "추천 이유",
         "quote": "결정적 문장",
         "target": "추천 대상"
     }}
@@ -45,18 +45,23 @@ def generate_recommendation(category, keyword):
         response = model.generate_content(prompt)
         text = response.text
         
-        # [핵심] 텍스트 전체에서 { ... } 로 감싸진 JSON 부분만 강제로 추출
-        # 설령 AI가 "여기 있습니다: {json}" 이라고 말해도 {json}만 가져옴
-        match = re.search(r'\{.*\}', text, re.DOTALL)
+        # 1. 마크다운 기호 제거
+        text = text.replace("```json", "").replace("```python", "").replace("```", "").strip()
         
+        # 2. 중괄호 {} 부분만 추출
+        match = re.search(r'\{.*\}', text, re.DOTALL)
         if match:
-            json_str = match.group()
-            return json.loads(json_str)
+            text_data = match.group()
+            
+            # 3. [핵심] JSON으로 시도해보고, 안 되면 파이썬 문법으로 해석 시도
+            try:
+                return json.loads(text_data)
+            except:
+                # 작은따옴표(') 등을 썼을 경우 여기서 해결됨
+                return ast.literal_eval(text_data)
         else:
             return None
     except Exception as e:
-        # 에러 발생 시 로그 출력 (디버깅용)
-        # st.error(f"Error: {e}") 
         return None
 
 # ------------------------------------------------------------------
@@ -78,11 +83,11 @@ with col2:
 
 if st.button("서고 탐색 시작 🗝️", type="primary"):
     if keyword:
-        with st.spinner("먼지 쌓인 서가에서 (구할 수 있는) 보물을 찾는 중입니다..."):
+        with st.spinner("먼지 쌓인 서가에서 보물을 찾는 중입니다..."):
             book_info = generate_recommendation(category, keyword)
             
             if book_info:
-                # 딕셔너리 키가 없을 경우를 대비해 .get() 사용
+                # 딕셔너리 키 안전하게 가져오기
                 title = book_info.get('title', '제목 없음')
                 author = book_info.get('author', '저자 미상')
                 
@@ -102,17 +107,11 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 st.divider()
                 st.subheader("🏛️ 소장 확인")
                 
-                # 검색어 인코딩
                 query = urllib.parse.quote(title)
                 
-                # 유성구 통합도서관
-                yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
-                
-                # 대전 통합 검색 (U-Library)
-                daejeon_unified_url = f"https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q={query}"
-                
-                # 교보문고 (정확도 높음)
-                kyobo_url = f"https://search.kyobobook.co.kr/search?keyword={query}&gbCode=TOT&target=total"
+                yuseong_url = f"[https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword=](https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword=){query}"
+                daejeon_unified_url = f"[https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q=](https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q=){query}"
+                kyobo_url = f"[https://search.kyobobook.co.kr/search?keyword=](https://search.kyobobook.co.kr/search?keyword=){query}&gbCode=TOT&target=total"
 
                 c1, c2, c3 = st.columns(3)
                 with c1:
@@ -126,6 +125,6 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 st.code(title, language="text")
                     
             else:
-                st.warning("AI가 책을 찾다가 졸았나 봅니다. (데이터 형식 오류). 다시 한 번 버튼을 눌러주세요.")
+                st.error("AI가 추천을 생성했지만 형식이 불안정했습니다. 다시 한 번만 눌러주세요! 🙏")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
