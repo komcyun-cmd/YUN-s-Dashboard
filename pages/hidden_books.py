@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import json
 import urllib.parse
+import re  # <--- [핵심] 정밀 데이터 추출 도구 추가
 
 # ------------------------------------------------------------------
 # [1] 설정
@@ -14,7 +15,7 @@ if "GEMINI_API_KEY" in st.secrets:
 model = genai.GenerativeModel('gemini-flash-latest')
 
 # ------------------------------------------------------------------
-# [2] 기능 함수
+# [2] 기능 함수 (수정됨)
 # ------------------------------------------------------------------
 def generate_recommendation(category, keyword):
     prompt = f"""
@@ -24,14 +25,13 @@ def generate_recommendation(category, keyword):
     [절대 금지]
     1. 베스트셀러, 누구나 아는 유명한 책 금지.
     2. 자기계발서 금지.
-    3. **절판된 책 절대 금지** (현재 서점이나 도서관에서 구할 수 있어야 함).
+    3. **절판된 책 절대 금지** (현재 구할 수 있어야 함).
     
     [추천 기준]
-    - 대중적이지 않지만, 현재 출판 중이고 구할 수 있는 '숨은 명저'.
-    - 전문가들 사이에서 알음알음 전해지는 인생의 책.
+    - 대중적이지 않지만 깊이가 압도적인 '숨은 명저'.
     
     [필수 출력 형식]
-    반드시 아래 JSON 포맷으로만 답변해. 다른 말 섞지 마.
+    다른 말 하지 말고 오직 아래 JSON 데이터만 출력해:
     {{
         "title": "책 제목",
         "author": "저자",
@@ -42,8 +42,14 @@ def generate_recommendation(category, keyword):
     """
     try:
         response = model.generate_content(prompt)
-        clean_text = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(clean_text)
+        text = response.text
+        
+        # [핵심 수정] AI가 잡담을 섞어도 {} 안에 있는 JSON만 강제로 끄집어냄
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        else:
+            return None
     except Exception as e:
         return None
 
@@ -66,7 +72,7 @@ with col2:
 
 if st.button("서고 탐색 시작 🗝️", type="primary"):
     if keyword:
-        with st.spinner("먼지 쌓인 서가에서 (구할 수 있는) 보물을 찾는 중입니다..."):
+        with st.spinner("먼지 쌓인 서가에서 보물을 찾는 중입니다..."):
             book_info = generate_recommendation(category, keyword)
             
             if book_info:
@@ -86,17 +92,15 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 st.divider()
                 st.subheader("🏛️ 소장 확인")
                 
-                # 검색어 인코딩
                 query = urllib.parse.quote(book_info['title'])
                 
-                # 유성구 통합도서관 (경로 유지)
+                # 유성구 통합도서관
                 yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
                 
                 # 대전 통합 검색 (U-Library)
                 daejeon_unified_url = f"https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q={query}"
                 
-                # [수정] 교보문고 검색 (가장 정확한 책 정보)
-                # 여기는 서점이라 잡다한 검색 결과 없이 '책'만 나옵니다.
+                # 교보문고 (가장 정확)
                 kyobo_url = f"https://search.kyobobook.co.kr/search?keyword={query}&gbCode=TOT&target=total"
 
                 c1, c2, c3 = st.columns(3)
@@ -105,12 +109,12 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 with c2:
                     st.link_button("🔍 대전 전체 도서관", daejeon_unified_url)
                 with c3:
-                    st.link_button("📕 교보문고 책 정보", kyobo_url)
+                    st.link_button("📕 교보문고 정보", kyobo_url)
                 
                 st.caption("※ 버튼이 작동하지 않으면 아래 제목을 복사하세요.")
                 st.code(book_info['title'], language="text")
                     
             else:
-                st.error("조건에 맞는 책을 찾지 못했습니다. 다시 시도해주세요.")
+                st.error("AI가 책을 찾다가 졸았나 봅니다. 다시 한 번 버튼을 눌러주세요. 😴")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
