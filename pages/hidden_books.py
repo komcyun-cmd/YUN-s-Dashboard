@@ -81,37 +81,45 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                     st.markdown(f"**❝ 결정적 문장:**\n*{book_info['quote']}*")
                     st.markdown(f"**👤 추천 대상:** {book_info['target']}")
                 
-                # 2. 도서관 검색 (수정된 URL)
+                # 2. 도서관 검색 (링크 수정 완료)
                 st.divider()
                 st.subheader("🏛️ 도서관 소장 확인")
                 
                 # 검색어 인코딩
                 query = urllib.parse.quote(book_info['title'])
                 
-                # [수정 1] 유성구 통합도서관 (정확한 최신 경로)
-                # 경로: /web/program/searchResultList.do
+                # [수정 1] 유성구 통합도서관 (기존 유지)
                 yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
                 
-                # [수정 2] 한밭도서관 (대전 대표, 유성구와 같은 시스템 사용 확률 높음)
-                # 대전 통합검색이 불안정하여 한밭도서관으로 변경
-                hanbat_url = f"https://www.hanbatlibrary.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
+                # [수정 2] 대전 사이버 도서관 (통합 검색) - 한밭도서관 포함 전체 검색
+                # 이 주소는 대전시 전체 도서관을 통합 검색하는 표준 URL입니다.
+                daejeon_unified_url = f"https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q={query}"
                 
-                c1, c2 = st.columns(2)
+                # [수정 3] 네이버 도서 검색 (최후의 보루)
+                naver_url = f"https://search.naver.com/search.naver?where=nexearch&sm=top_hty&fbm=0&ie=utf8&query={query}+책"
+
+                c1, c2, c3 = st.columns(3)
                 with c1:
                     st.link_button(
-                        label="📍 유성구 도서관 검색 (노은/유성/진잠)", 
+                        label="📍 유성구 도서관", 
                         url=yuseong_url, 
-                        help="클릭하면 바로 검색 결과가 뜹니다."
+                        help="유성구 내 도서관(노은/진잠 등)을 검색합니다."
                     )
                 with c2:
                     st.link_button(
-                        label="🔍 한밭도서관 검색 (대전 전체)", 
-                        url=hanbat_url,
-                        help="유성에 없다면 대전 대표 도서관을 찾아봅니다."
+                        label="🔍 대전 전체 통합검색", 
+                        url=daejeon_unified_url,
+                        help="한밭도서관을 포함한 대전시 전체를 검색합니다."
+                    )
+                with c3:
+                    st.link_button(
+                        label="📗 네이버 책 정보", 
+                        url=naver_url,
+                        help="도서관에 없다면 구매처나 리뷰를 확인하세요."
                     )
                 
-                # 3. 혹시 몰라 제목 복사 기능 제공
-                st.caption("※ 만약 버튼으로 검색이 안 되면, 아래 제목을 복사해서 이용하세요.")
+                # 제목 복사 기능
+                st.caption("※ 버튼이 작동하지 않으면 아래 제목을 복사하세요.")
                 st.code(book_info['title'], language="text")
                     
             else:
