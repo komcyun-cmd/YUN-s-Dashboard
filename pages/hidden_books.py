@@ -86,16 +86,18 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 st.divider()
                 st.subheader("🏛️ 소장 확인")
                 
+                # 검색어 인코딩
                 query = urllib.parse.quote(book_info['title'])
                 
                 # 유성구 통합도서관
                 yuseong_url = f"https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword={query}"
                 
-                # 대전 통합 검색 (한밭 등 포함)
+                # 대전 통합 검색 (U-Library)
                 daejeon_unified_url = f"https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q={query}"
                 
-                # 네이버 책 (구매용)
-                naver_url = f"https://search.naver.com/search.naver?where=nexearch&sm=top_hty&fbm=0&ie=utf8&query={query}+책"
+                # [수정] 네이버 '도서 탭' 직접 검색 (가장 확실한 주소)
+                # where=book 파라미터를 써서 무조건 책 검색 결과가 나오게 강제함
+                naver_url = f"https://search.naver.com/search.naver?where=book&query={query}"
 
                 c1, c2, c3 = st.columns(3)
                 with c1:
