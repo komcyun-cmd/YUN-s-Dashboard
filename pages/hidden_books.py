@@ -28,9 +28,6 @@ def generate_recommendation(category, keyword):
     2. 자기계발서 금지.
     3. 절판된 책 절대 금지.
     
-    [추천 기준]
-    - 대중적이지 않지만 깊이가 압도적인 '숨은 명저'.
-    
     [필수 출력 형식 - Python Dictionary]
     반드시 아래 파이썬 딕셔너리 형태로 답변해. 설명 붙이지 마.
     {{
@@ -57,7 +54,7 @@ def generate_recommendation(category, keyword):
                 return ast.literal_eval(text_data)
         else:
             return None
-    except Exception as e:
+    except:
         return None
 
 # ------------------------------------------------------------------
@@ -86,6 +83,15 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 title = book_info.get('title', '제목 없음')
                 author = book_info.get('author', '저자 미상')
                 
+                # 검색어 인코딩
+                query = urllib.parse.quote(title)
+                
+                # [핵심 수정] 절대 안 깨지는 메인 링크들
+                naver_link = f"[https://search.naver.com/search.naver?query=](https://search.naver.com/search.naver?query=){query}+책"
+                kyobo_link = f"[https://search.kyobobook.co.kr/search?keyword=](https://search.kyobobook.co.kr/search?keyword=){query}"
+                yuseong_link = "[https://lib.yuseong.go.kr/](https://lib.yuseong.go.kr/)"
+                daejeon_link = "[https://www.u-library.kr/](https://www.u-library.kr/)"
+
                 st.success(f"'{title}'을(를) 찾았습니다.")
                 
                 # 1. 책 정보 카드
@@ -95,38 +101,42 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                     st.markdown(f"**💭 발굴 이유:** {book_info.get('reason', '')}")
                     st.markdown(f"**❝ 결정적 문장:** *{book_info.get('quote', '')}*")
                 
-                # 2. 통합 검색 및 바로가기
+                # 2. 확실한 이동 링크 (HTML)
                 st.divider()
-                st.subheader("🏛️ 소장 확인")
-                st.caption("아래 버튼을 눌러 사이트로 이동한 뒤, 복사한 제목을 붙여넣으세요.")
-
-                # 검색어 인코딩 (공백 처리에 강한 quote_plus 사용)
-                query = urllib.parse.quote_plus(title)
+                st.subheader("🏛️ 소장 확인 및 구매")
+                st.info("👇 아래 제목을 복사(Ctrl+C)한 뒤, 링크를 눌러 검색창에 붙여넣으세요.")
                 
-                # [수정] 가장 확실한 메인 페이지 URL + 네이버 책
-                naver_book_url = f"[https://search.naver.com/search.naver?where=book&query=](https://search.naver.com/search.naver?where=book&query=){query}"
-                yuseong_home = "[https://lib.yuseong.go.kr/](https://lib.yuseong.go.kr/)"
-                u_library_home = "[https://www.u-library.kr/](https://www.u-library.kr/)"
-                kyobo_home = f"[https://search.kyobobook.co.kr/search?keyword=](https://search.kyobobook.co.kr/search?keyword=){query}" # 교보는 이게 표준이라 유지하되 인코딩 강화
-
-                # 버튼 배치
-                c1, c2, c3, c4 = st.columns(4)
-                
-                with c1:
-                    # 네이버는 링크가 깨질 일이 거의 없음
-                    st.link_button("📗 네이버 책", naver_book_url, help="책 상세 정보와 판매처를 확인합니다.")
-                with c2:
-                    st.link_button("📕 교보문고", kyobo_home, help="교보문고 검색 결과로 이동합니다.")
-                with c3:
-                    st.link_button("🏛️ 유성구 도서관", yuseong_home, help="유성구 통합도서관 메인으로 이동합니다.")
-                with c4:
-                    st.link_button("🏛️ 대전 사이버", u_library_home, help="대전 전체 도서관 검색 메인으로 이동합니다.")
-
-                # 제목 복사 편의성 제공
-                st.info("👇 아래 제목을 복사해서 도서관 검색창에 붙여넣으세요!")
+                # 제목 복사 영역
                 st.code(title, language="text")
-                    
+                
+                # HTML 링크 모음 (버튼 아님, 순수 링크)
+                st.markdown(f"""
+                <style>
+                .link-box {{
+                    padding: 10px;
+                    border-radius: 5px;
+                    background-color: #f0f2f6;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                }}
+                a {{ text-decoration: none; }}
+                </style>
+                
+                <div class="link-box">
+                    📗 <a href="{naver_link}" target="_blank">네이버 책 정보 보기 (새창)</a>
+                </div>
+                <div class="link-box">
+                    📕 <a href="{kyobo_link}" target="_blank">교보문고 재고 확인 (새창)</a>
+                </div>
+                <div class="link-box">
+                    🏛️ <a href="{yuseong_link}" target="_blank">유성구 통합도서관 이동 (새창)</a>
+                </div>
+                <div class="link-box">
+                    🔍 <a href="{daejeon_link}" target="_blank">대전 사이버 도서관 이동 (새창)</a>
+                </div>
+                """, unsafe_allow_html=True)
+
             else:
-                st.warning("AI가 잠시 길을 잃었습니다. 다시 한 번 버튼을 눌러주세요.")
+                st.warning("AI가 추천을 생성했지만 형식이 불안정했습니다. 다시 한 번만 눌러주세요! 🙏")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
