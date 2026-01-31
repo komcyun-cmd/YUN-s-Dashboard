@@ -3,7 +3,7 @@ import google.generativeai as genai
 import json
 import urllib.parse
 import re
-import ast # <--- [핵심] 유연한 해석기 추가
+import ast
 
 # ------------------------------------------------------------------
 # [1] 설정
@@ -16,7 +16,7 @@ if "GEMINI_API_KEY" in st.secrets:
 model = genai.GenerativeModel('gemini-flash-latest')
 
 # ------------------------------------------------------------------
-# [2] 기능 함수 (강력해짐)
+# [2] 기능 함수
 # ------------------------------------------------------------------
 def generate_recommendation(category, keyword):
     prompt = f"""
@@ -45,19 +45,15 @@ def generate_recommendation(category, keyword):
         response = model.generate_content(prompt)
         text = response.text
         
-        # 1. 마크다운 기호 제거
+        # 데이터 정제
         text = text.replace("```json", "").replace("```python", "").replace("```", "").strip()
-        
-        # 2. 중괄호 {} 부분만 추출
         match = re.search(r'\{.*\}', text, re.DOTALL)
+        
         if match:
             text_data = match.group()
-            
-            # 3. [핵심] JSON으로 시도해보고, 안 되면 파이썬 문법으로 해석 시도
             try:
                 return json.loads(text_data)
             except:
-                # 작은따옴표(') 등을 썼을 경우 여기서 해결됨
                 return ast.literal_eval(text_data)
         else:
             return None
@@ -87,7 +83,6 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
             book_info = generate_recommendation(category, keyword)
             
             if book_info:
-                # 딕셔너리 키 안전하게 가져오기
                 title = book_info.get('title', '제목 없음')
                 author = book_info.get('author', '저자 미상')
                 
@@ -97,34 +92,41 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 with st.container(border=True):
                     st.subheader(f"📖 {title}")
                     st.caption(f"저자: {author}")
-                    
-                    st.markdown(f"**💭 발굴 이유:**\n{book_info.get('reason', '')}")
-                    st.markdown(f"---")
-                    st.markdown(f"**❝ 결정적 문장:**\n*{book_info.get('quote', '')}*")
-                    st.markdown(f"**👤 추천 대상:** {book_info.get('target', '')}")
+                    st.markdown(f"**💭 발굴 이유:** {book_info.get('reason', '')}")
+                    st.markdown(f"**❝ 결정적 문장:** *{book_info.get('quote', '')}*")
                 
-                # 2. 도서관/서점 검색
+                # 2. 통합 검색 및 바로가기
                 st.divider()
                 st.subheader("🏛️ 소장 확인")
-                
-                query = urllib.parse.quote(title)
-                
-                yuseong_url = f"[https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword=](https://lib.yuseong.go.kr/web/program/searchResultList.do?searchType=SIMPLE&searchCategory=BOOK&keyword=){query}"
-                daejeon_unified_url = f"[https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q=](https://www.u-library.kr/search/tot/result?st=KWRD&si=TOTAL&q=){query}"
-                kyobo_url = f"[https://search.kyobobook.co.kr/search?keyword=](https://search.kyobobook.co.kr/search?keyword=){query}&gbCode=TOT&target=total"
+                st.caption("아래 버튼을 눌러 사이트로 이동한 뒤, 복사한 제목을 붙여넣으세요.")
 
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.link_button("📍 유성구 도서관", yuseong_url)
-                with c2:
-                    st.link_button("🔍 대전 전체 도서관", daejeon_unified_url)
-                with c3:
-                    st.link_button("📕 교보문고 정보", kyobo_url)
+                # 검색어 인코딩 (공백 처리에 강한 quote_plus 사용)
+                query = urllib.parse.quote_plus(title)
                 
-                st.caption("※ 버튼이 작동하지 않으면 아래 제목을 복사하세요.")
+                # [수정] 가장 확실한 메인 페이지 URL + 네이버 책
+                naver_book_url = f"[https://search.naver.com/search.naver?where=book&query=](https://search.naver.com/search.naver?where=book&query=){query}"
+                yuseong_home = "[https://lib.yuseong.go.kr/](https://lib.yuseong.go.kr/)"
+                u_library_home = "[https://www.u-library.kr/](https://www.u-library.kr/)"
+                kyobo_home = f"[https://search.kyobobook.co.kr/search?keyword=](https://search.kyobobook.co.kr/search?keyword=){query}" # 교보는 이게 표준이라 유지하되 인코딩 강화
+
+                # 버튼 배치
+                c1, c2, c3, c4 = st.columns(4)
+                
+                with c1:
+                    # 네이버는 링크가 깨질 일이 거의 없음
+                    st.link_button("📗 네이버 책", naver_book_url, help="책 상세 정보와 판매처를 확인합니다.")
+                with c2:
+                    st.link_button("📕 교보문고", kyobo_home, help="교보문고 검색 결과로 이동합니다.")
+                with c3:
+                    st.link_button("🏛️ 유성구 도서관", yuseong_home, help="유성구 통합도서관 메인으로 이동합니다.")
+                with c4:
+                    st.link_button("🏛️ 대전 사이버", u_library_home, help="대전 전체 도서관 검색 메인으로 이동합니다.")
+
+                # 제목 복사 편의성 제공
+                st.info("👇 아래 제목을 복사해서 도서관 검색창에 붙여넣으세요!")
                 st.code(title, language="text")
                     
             else:
-                st.error("AI가 추천을 생성했지만 형식이 불안정했습니다. 다시 한 번만 눌러주세요! 🙏")
+                st.warning("AI가 잠시 길을 잃었습니다. 다시 한 번 버튼을 눌러주세요.")
     else:
         st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
