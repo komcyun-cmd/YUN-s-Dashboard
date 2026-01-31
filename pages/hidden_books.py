@@ -86,57 +86,60 @@ if st.button("서고 탐색 시작 🗝️", type="primary"):
                 # 검색어 인코딩
                 query = urllib.parse.quote(title)
                 
-                # [핵심 수정] 절대 안 깨지는 메인 링크들
-                naver_link = f"[https://search.naver.com/search.naver?query=](https://search.naver.com/search.naver?query=){query}+책"
+                # [핵심] 무조건 작동하는 URL
+                # 네이버/교보는 검색 결과로 바로 감 (잘 됨)
+                naver_link = f"[https://search.naver.com/search.naver?where=book&query=](https://search.naver.com/search.naver?where=book&query=){query}"
                 kyobo_link = f"[https://search.kyobobook.co.kr/search?keyword=](https://search.kyobobook.co.kr/search?keyword=){query}"
+                
+                # 도서관은 '메인 페이지'로 보냄 (검색 결과 페이지는 보안 때문에 404 에러 남)
                 yuseong_link = "[https://lib.yuseong.go.kr/](https://lib.yuseong.go.kr/)"
                 daejeon_link = "[https://www.u-library.kr/](https://www.u-library.kr/)"
 
                 st.success(f"'{title}'을(를) 찾았습니다.")
                 
-                # 1. 책 정보 카드
                 with st.container(border=True):
                     st.subheader(f"📖 {title}")
                     st.caption(f"저자: {author}")
                     st.markdown(f"**💭 발굴 이유:** {book_info.get('reason', '')}")
                     st.markdown(f"**❝ 결정적 문장:** *{book_info.get('quote', '')}*")
                 
-                # 2. 확실한 이동 링크 (HTML)
                 st.divider()
-                st.subheader("🏛️ 소장 확인 및 구매")
-                st.info("👇 아래 제목을 복사(Ctrl+C)한 뒤, 링크를 눌러 검색창에 붙여넣으세요.")
-                
-                # 제목 복사 영역
+                st.subheader("🏛️ 링크 모음 (클릭 시 새 창)")
+                st.info("👇 책 제목을 복사해서 도서관 검색창에 붙여넣으세요.")
                 st.code(title, language="text")
-                
-                # HTML 링크 모음 (버튼 아님, 순수 링크)
+
+                # [여기가 핵심] Streamlit 버튼 대신 순수 HTML 링크 사용
+                # 브라우저가 처리하므로 100% 열림
                 st.markdown(f"""
                 <style>
-                .link-box {{
-                    padding: 10px;
-                    border-radius: 5px;
-                    background-color: #f0f2f6;
-                    margin-bottom: 5px;
-                    font-weight: bold;
-                }}
-                a {{ text-decoration: none; }}
+                    .custom-link {{
+                        display: block;
+                        background-color: #f0f2f6;
+                        padding: 12px;
+                        border-radius: 8px;
+                        margin-bottom: 8px;
+                        text-decoration: none;
+                        color: #31333F;
+                        font-weight: bold;
+                        border: 1px solid #d6d6d8;
+                        text-align: center;
+                    }}
+                    .custom-link:hover {{
+                        background-color: #e0e2e6;
+                        border-color: #ff4b4b;
+                        color: #ff4b4b;
+                    }}
                 </style>
                 
-                <div class="link-box">
-                    📗 <a href="{naver_link}" target="_blank">네이버 책 정보 보기 (새창)</a>
-                </div>
-                <div class="link-box">
-                    📕 <a href="{kyobo_link}" target="_blank">교보문고 재고 확인 (새창)</a>
-                </div>
-                <div class="link-box">
-                    🏛️ <a href="{yuseong_link}" target="_blank">유성구 통합도서관 이동 (새창)</a>
-                </div>
-                <div class="link-box">
-                    🔍 <a href="{daejeon_link}" target="_blank">대전 사이버 도서관 이동 (새창)</a>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <a href="{naver_link}" target="_blank" class="custom-link">📗 네이버 책 (검색결과)</a>
+                    <a href="{kyobo_link}" target="_blank" class="custom-link">📕 교보문고 (검색결과)</a>
+                    <a href="{yuseong_link}" target="_blank" class="custom-link">🏛️ 유성구 도서관 (메인)</a>
+                    <a href="{daejeon_link}" target="_blank" class="custom-link">🔍 대전 통합 도서관 (메인)</a>
                 </div>
                 """, unsafe_allow_html=True)
 
             else:
-                st.warning("AI가 추천을 생성했지만 형식이 불안정했습니다. 다시 한 번만 눌러주세요! 🙏")
+                st.warning("AI 데이터 오류입니다. 다시 눌러주세요.")
     else:
-        st.warning("키워드를 입력해야 책을 찾을 수 있습니다.")
+        st.warning("키워드를 입력해주세요.")
