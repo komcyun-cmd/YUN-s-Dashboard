@@ -32,6 +32,10 @@ with col_left:
         st.caption("하루를 시작하고 기록하는 공간")
         
         st.page_link("pages/today.py", label="오늘의 브리핑 (날씨/할일)", icon="📅")
+        
+        # [NEW] 여기에 야구 뉴스 추가했습니다! ⚾️
+        st.page_link("pages/baseball.py", label="오늘의 야구 (KBO 뉴스)", icon="⚾")
+        
         st.page_link("pages/newsletter.py", label="뉴스레터 요약기", icon="📰")
         st.page_link("pages/obsidian.py", label="지식 수집 (Obsidian)", icon="🧠")
 
@@ -57,7 +61,7 @@ with col_right:
         st.subheader("☕ Life & Inspiration")
         st.caption("가족과의 시간, 그리고 나만의 지적 유희")
         
-        # [NEW] 심해의 서재 추가!
+        # 심해의 서재
         st.page_link("pages/hidden_books.py", label="심해의 서재 (숨은 명저 찾기)", icon="🕯️")
         
         st.page_link("pages/movie.py", label="우리 가족 시네마", icon="🎬")
