@@ -31,7 +31,8 @@ try:
 except Exception as e:
     creds = None
 
-model = genai.GenerativeModel('gemini-1.5-flash') # 최신 모델 명시
+# [핵심 수정] 원장님 환경에서 가장 잘 돌아가는 호환성 100% 모델명으로 원복
+model = genai.GenerativeModel('gemini-flash-latest')
 
 def get_sheet():
     if not creds: return None
@@ -156,7 +157,6 @@ with tab1:
                     if sheet:
                         try:
                             # 데이터프레임을 리스트로 변환하여 구글 시트에 다중 행(Multiple Rows) 한 번에 추가
-                            # datetime 객체를 다시 문자열로 변환해야 시트 저장 시 오류가 안 남
                             edited_df['date'] = edited_df['date'].astype(str)
                             rows_to_insert = edited_df[["date", "category", "amount", "memo"]].values.tolist()
                             
